@@ -1,6 +1,6 @@
 # n8n Local Development Stack
 
-Self-hosted n8n with **Ollama** (free local LLM), **PostgreSQL**, and five sample pipelines for local automation testing.
+Self-hosted n8n with **Ollama** (free local LLM), **PostgreSQL**, **Qdrant** (local vector store), and sample pipelines for local automation testing.
 
 ## Quick start
 
@@ -23,8 +23,9 @@ On first visit, create the owner account using these credentials if prompted.
 |---------|-----|
 | n8n UI | http://localhost:5678 |
 | Ollama API | http://localhost:11434 |
+| Qdrant API | http://localhost:6333 |
 
-First startup pulls the `llama3.2` model (~2GB) and imports the sample workflows automatically.
+First startup pulls the `llama3.2`, `qwen2.5-coder:7b`, and `nomic-embed-text` models and imports the sample workflows automatically.
 
 ## Commands
 
@@ -39,7 +40,7 @@ docker compose down -v        # Reset everything (deletes data)
 
 ## Sample workflows
 
-Five workflows are imported on first run (or import manually from **Workflows → ⋮ → Import from File**):
+Sample workflows are imported on first run (or import manually from **Workflows → ⋮ → Import from File**):
 
 ### 1. Weekly AI News Scraper
 
@@ -202,11 +203,94 @@ Add that header row manually if the sheet is empty or still has old column names
 - The AI must return `{"labels": ["Notification"]}` — the JSON Parser auto-fixes minor format issues
 - Customize label names in **Find missing labels**, the AI prompt, and the JSON schema together
 
+### 6. Code Companion — PR & Issue Triage Agent
+
+**Trigger:** GitHub `issues` and `pull_request` events (opened, edited, synchronize, reopened).
+
+An autonomous **AI Agent** (Ollama `qwen2.5-coder:7b`) acts as a local staff engineer:
+
+1. **GitHub Trigger** fires when an issue is opened or a PR is submitted
+2. **Code Companion Agent** reads the title/body and decides which tools to call
+3. **Code Fetcher Tool** (sub-workflow) pulls raw files, PR diffs, or changed-file patches from GitHub
+4. **Architecture RAG** searches a local **Qdrant** vector store loaded with your project guidelines
+5. **Post GitHub Comment** publishes structured markdown: root-cause analysis, suggested fix snippet, compliance score, and next steps
+
+**Related workflows (import all three):**
+
+| File | Purpose |
+|------|---------|
+| `06-code-companion-pr-issue-triage.json` | Main agent workflow |
+| `06a-code-fetcher-tool.json` | Sub-workflow tool for GitHub code/diffs |
+| `06c-ingest-architecture-docs.json` | One-time doc ingestion into Qdrant |
+
+**Setup required:**
+
+1. Start the stack (includes Qdrant on port 6333):
+
+   ```bash
+   docker compose up -d
+   ```
+
+2. **GitHub credential** — n8n → **Credentials → GitHub API** (Personal Access Token with `repo` scope for private repos, or `public_repo` for public)
+
+3. **Ollama credential** — **Credentials → Ollama** → Base URL `http://ollama:11434`
+
+4. **Qdrant credential** — **Credentials → Qdrant** → URL `http://qdrant:6333` (no API key needed locally)
+
+5. **Ingest architecture docs** (run once):
+
+   - Open **06c - Ingest Architecture Docs**
+   - Assign Ollama + Qdrant credentials
+   - Click **Execute Workflow**
+   - Default docs live in `./docs/` (e.g. `architecture-guidelines.md`). Add your own markdown files there and re-run.
+
+6. **Configure main workflow:**
+
+   - Open **06 - Code Companion PR and Issue Triage**
+   - Set **owner** and **repository** on the GitHub Trigger node
+   - Assign GitHub, Ollama, and Qdrant credentials on all nodes
+   - On **Code Fetcher Tool**, confirm sub-workflow **06a - Code Fetcher Tool** is selected
+
+7. **Expose webhooks** — GitHub must reach your n8n instance. For local dev, use [ngrok](https://ngrok.com/) or `n8n start --tunnel` and set `WEBHOOK_URL` in `.env` to the public URL.
+
+8. Activate the workflow and open a test issue or PR.
+
+**Model notes:**
+
+- Default coding model: `qwen2.5-coder:7b` (supports tool calling). Alternatives: `deepseek-coder`, `codellama`, or `qwen3:8b`.
+- RAG embeddings: `nomic-embed-text` (pulled automatically on first start).
+- Local 7B models may stop after the first tool call. If that happens, increase **Max Iterations** on the agent (already set to 15) or switch to a larger tool-capable model.
+
+**Webhook / GitLab alternative:**
+
+Replace the GitHub Trigger with a **Webhook** node and map your provider's payload in **Parse GitHub Event**, or swap in a **GitLab Trigger** node. The agent + tools chain stays the same.
+
+**Sample agent output:**
+
+```markdown
+## Root Cause Analysis
+The PR modifies the service layer but imports a database client directly in the HTTP handler...
+
+## Suggested Fix
+```python
+# Move DB access behind UserRepository in services/user_service.py
+```
+
+## Architecture Compliance
+- **Score:** 72/100
+- **Notes:** Violates layering guideline (presentation → service → data).
+
+## Recommended Next Steps
+- Refactor handler to call UserService
+- Add unit test for the new code path
+```
+
 ## Free LLM stack
 
 | Use case | Provider | Cost |
 |----------|----------|------|
-| Text (summarize, reply) | Ollama `llama3.2` in Docker | Free, local |
+| Text (summarize, reply, triage) | Ollama `llama3.2` / `qwen2.5-coder:7b` in Docker | Free, local |
+| Embeddings (RAG) | Ollama `nomic-embed-text` + Qdrant | Free, local |
 | Images | Pollinations.ai `flux` model | Free, no key |
 
 Ollama is reachable inside n8n as `http://ollama:11434`. Workflows use HTTP Request nodes so no Ollama credential setup is needed.
@@ -221,8 +305,9 @@ docker exec -it ollama ollama pull mistral
 
 ```
 .
-├── docker-compose.yml    # n8n + Postgres + Ollama
+├── docker-compose.yml    # n8n + Postgres + Ollama + Qdrant
 ├── .env                  # Secrets (not committed)
+├── docs/                 # Architecture guidelines for RAG ingestion
 ├── workflows/            # Sample pipeline JSON (auto-imported)
 └── shared/               # Generated images land here
 ```
@@ -259,6 +344,17 @@ Custom labels must exist in Gmail. The workflow creates them automatically when 
 docker compose exec n8n n8n import:workflow --separate --input=/demo-data/workflows
 ```
 
+**Code Companion: agent skips tools or posts empty comment**
+
+- Confirm `qwen2.5-coder:7b` is pulled: `docker exec -it ollama ollama list`
+- Run **06c - Ingest Architecture Docs** before activating the agent
+- Check Qdrant has vectors: open http://localhost:6333/dashboard
+- Re-link sub-workflow **06a** on the **Code Fetcher Tool** node after import
+
+**Code Companion: GitHub webhook 404**
+
+- n8n must be reachable from the internet; set `WEBHOOK_URL` to your tunnel URL and restart n8n
+
 **Reset and start fresh**
 
 ```bash
@@ -270,4 +366,5 @@ docker compose up -d
 
 - Add Slack/email nodes after the news digest
 - Swap Pollinations for a local image model if you prefer fully offline generation
-- Use n8n **AI Agent** nodes with Ollama for more complex multi-step flows
+- Extend Code Companion with human-in-the-loop approval before posting comments
+- Point RAG at your real architecture docs in `./docs/`
