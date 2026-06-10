@@ -1,0 +1,126 @@
+{
+  "name": "06c - Ingest Architecture Docs",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b1b2c3d4-006c-4000-8000-000000000001",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/data/docs/**/*.md",
+        "options": {}
+      },
+      "id": "b1b2c3d4-006c-4000-8000-000000000002",
+      "name": "Read Architecture Docs",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "dataType": "binary",
+        "binaryMode": "specificField",
+        "loader": "textLoader",
+        "textSplittingMode": "custom",
+        "options": {}
+      },
+      "id": "b1b2c3d4-006c-4000-8000-000000000003",
+      "name": "Document Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [720, 480]
+    },
+    {
+      "parameters": {
+        "chunkSize": 800,
+        "chunkOverlap": 100,
+        "options": {}
+      },
+      "id": "b1b2c3d4-006c-4000-8000-000000000004",
+      "name": "Text Splitter",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [720, 640]
+    },
+    {
+      "parameters": {
+        "model": "nomic-embed-text:latest",
+        "options": {}
+      },
+      "id": "b1b2c3d4-006c-4000-8000-000000000005",
+      "name": "Ollama Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [720, 300],
+      "credentials": {
+        "ollamaApi": {
+          "id": "CONFIGURE_OLLAMA_CREDENTIAL",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "qdrantCollection": {
+          "__rl": true,
+          "mode": "list",
+          "value": "architecture_docs"
+        },
+        "options": {}
+      },
+      "id": "b1b2c3d4-006c-4000-8000-000000000006",
+      "name": "Insert into Qdrant",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "position": [960, 300],
+      "credentials": {
+        "qdrantApi": {
+          "id": "CONFIGURE_QDRANT_CREDENTIAL",
+          "name": "Qdrant account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "### Ingest Architecture Docs\nRun once (or after editing `docs/`) to populate the **architecture_docs** Qdrant collection.\n\n1. Add **Ollama** credential → `http://ollama:11434`\n2. Add **Qdrant** credential → `http://qdrant:6333`\n3. Pull embedding model: `docker exec -it ollama ollama pull nomic-embed-text`\n4. Click **Execute Workflow**\n\nDocs are read from `/data/docs/` (mounted from `./docs` in this repo).",
+        "height": 240,
+        "width": 420
+      },
+      "id": "b1b2c3d4-006c-4000-8000-000000000007",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [200, 80],
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [[{ "node": "Read Architecture Docs", "type": "main", "index": 0 }]]
+    },
+    "Read Architecture Docs": {
+      "main": [[{ "node": "Insert into Qdrant", "type": "main", "index": 0 }]]
+    },
+    "Document Loader": {
+      "ai_document": [[{ "node": "Insert into Qdrant", "type": "ai_document", "index": 0 }]]
+    },
+    "Text Splitter": {
+      "ai_textSplitter": [[{ "node": "Document Loader", "type": "ai_textSplitter", "index": 0 }]]
+    },
+    "Ollama Embeddings": {
+      "ai_embedding": [[{ "node": "Insert into Qdrant", "type": "ai_embedding", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

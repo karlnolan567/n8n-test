@@ -1,0 +1,295 @@
+{
+  "name": "06 - Code Companion PR and Issue Triage",
+  "nodes": [
+    {
+      "parameters": {
+        "owner": {
+          "__rl": true,
+          "mode": "name",
+          "value": "YOUR_GITHUB_OWNER"
+        },
+        "repository": {
+          "__rl": true,
+          "mode": "name",
+          "value": "YOUR_REPO_NAME"
+        },
+        "events": ["issues", "pull_request"],
+        "options": {}
+      },
+      "id": "b1b2c3d4-0006-4000-8000-000000000001",
+      "name": "GitHub Trigger",
+      "type": "n8n-nodes-base.githubTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "c0de-c0mp-0006-4000-8000-000000000001",
+      "credentials": {
+        "githubApi": {
+          "id": "CONFIGURE_GITHUB_CREDENTIAL",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $input.first().json.body ?? $input.first().json;\nconst action = payload.action;\n\nconst eventType = payload.issue\n  ? (payload.pull_request ? 'pull_request' : 'issue')\n  : payload.pull_request\n    ? 'pull_request'\n    : 'unknown';\n\nconst validActions = {\n  issue: ['opened', 'edited', 'reopened'],\n  pull_request: ['opened', 'synchronize', 'reopened', 'edited']\n};\n\nif (!validActions[eventType]?.includes(action)) {\n  return [];\n}\n\nconst repo = payload.repository;\nconst owner = repo.owner.login;\nconst repoName = repo.name;\nconst defaultBranch = repo.default_branch || 'main';\n\nlet number, title, description, htmlUrl, labels;\nif (eventType === 'issue') {\n  number = payload.issue.number;\n  title = payload.issue.title;\n  description = payload.issue.body || '';\n  htmlUrl = payload.issue.html_url;\n  labels = (payload.issue.labels || []).map((l) => l.name).join(', ');\n} else {\n  number = payload.pull_request.number;\n  title = payload.pull_request.title;\n  description = payload.pull_request.body || '';\n  htmlUrl = payload.pull_request.html_url;\n  labels = '';\n}\n\nconst triagePrompt = [\n  'Triaging GitHub ' + eventType.replace('_', ' ') + ' #' + number,\n  'Repository: ' + owner + '/' + repoName,\n  'Action: ' + action,\n  'URL: ' + htmlUrl,\n  '',\n  '## Title',\n  title,\n  '',\n  '## Description',\n  description || '(no description provided)',\n  labels ? '\\n## Labels\\n' + labels : '',\n  '',\n  '## Your task',\n  '1. Use the Code Fetcher tool to inspect relevant code (PR diff/files for pull requests; infer likely file paths for issues).',\n  '2. Use the Architecture RAG tool to retrieve applicable architecture guidelines.',\n  '3. Produce a staff-engineer triage comment in markdown with root cause analysis, suggested fix snippet, compliance score, and next steps.'\n].join('\\n');\n\nreturn [{\n  json: {\n    eventType,\n    action,\n    owner,\n    repo: repoName,\n    number,\n    title,\n    description,\n    htmlUrl,\n    defaultBranch,\n    triagePrompt\n  }\n}];"
+      },
+      "id": "b1b2c3d4-0006-4000-8000-000000000002",
+      "name": "Parse GitHub Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.triagePrompt }}",
+        "options": {
+          "systemMessage": "You are an autonomous staff engineer triaging GitHub issues and pull requests for a local development team.\n\nTOOLS (you MUST call both before finishing):\n1. **Code Fetcher Tool** — fetch repo files, PR diffs, or changed-file patches.\n   - For pull requests: start with fetch_type `pr_files`, then `pr_diff` if you need full context.\n   - For issues: use fetch_type `file` with likely paths mentioned in the description.\n2. **Architecture RAG** — search architecture guidelines and score compliance.\n\nRULES:\n- Use structured tool calls only. Never write tool calls as plain text.\n- Base analysis on tool results, not assumptions.\n- If information is missing, say what you could not verify.\n- Keep suggested fix snippets minimal and actionable.\n\nOUTPUT: Return ONLY the GitHub comment body in markdown using exactly these sections:\n\n## Root Cause Analysis\n...\n\n## Suggested Fix\n```language\n...\n```\n\n## Architecture Compliance\n- **Score:** X/100\n- **Notes:** ...\n\n## Recommended Next Steps\n- ...\n\nSign off with: _Posted by Code Companion (local Ollama agent)_",
+          "maxIterations": 15
+        }
+      },
+      "id": "b1b2c3d4-0006-4000-8000-000000000003",
+      "name": "Code Companion Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [760, 300]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5-coder:7b",
+        "options": {
+          "numPredict": -1,
+          "temperature": 0.2
+        }
+      },
+      "id": "b1b2c3d4-0006-4000-8000-000000000004",
+      "name": "Ollama Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [760, 520],
+      "credentials": {
+        "ollamaApi": {
+          "id": "CONFIGURE_OLLAMA_CREDENTIAL",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Fetch source code from GitHub. Inputs: fetch_type (file | pr_diff | pr_files), file_path (required when fetch_type=file). Owner, repo, and pull_number are pre-filled from the trigger.",
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "06a - Code Fetcher Tool"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "owner": "={{ $('Parse GitHub Event').item.json.owner }}",
+            "repo": "={{ $('Parse GitHub Event').item.json.repo }}",
+            "pull_number": "={{ $('Parse GitHub Event').item.json.number }}",
+            "ref": "={{ $('Parse GitHub Event').item.json.defaultBranch }}",
+            "fetch_type": "={{ $fromAI('fetch_type', 'One of: file, pr_diff, pr_files', 'string') }}",
+            "file_path": "={{ $fromAI('file_path', 'Repo-relative path when fetch_type=file, otherwise empty string', 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "owner",
+              "displayName": "owner",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "repo",
+              "displayName": "repo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fetch_type",
+              "displayName": "fetch_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "file_path",
+              "displayName": "file_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "pull_number",
+              "displayName": "pull_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ref",
+              "displayName": "ref",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "b1b2c3d4-0006-4000-8000-000000000005",
+      "name": "Code Fetcher Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [960, 520]
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolName": "architecture_rag",
+        "toolDescription": "Search local architecture guidelines, coding standards, and framework documentation stored in Qdrant. Use this to evaluate compliance and cite relevant rules.",
+        "topK": 5,
+        "qdrantCollection": {
+          "__rl": true,
+          "mode": "list",
+          "value": "architecture_docs"
+        },
+        "options": {}
+      },
+      "id": "b1b2c3d4-0006-4000-8000-000000000006",
+      "name": "Architecture RAG",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.3,
+      "position": [960, 680],
+      "credentials": {
+        "qdrantApi": {
+          "id": "CONFIGURE_QDRANT_CREDENTIAL",
+          "name": "Qdrant account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "nomic-embed-text:latest",
+        "options": {}
+      },
+      "id": "b1b2c3d4-0006-4000-8000-000000000007",
+      "name": "Ollama Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [960, 840],
+      "credentials": {
+        "ollamaApi": {
+          "id": "CONFIGURE_OLLAMA_CREDENTIAL",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const agentOut = $input.first().json;\nconst event = $('Parse GitHub Event').first().json;\n\nconst body = agentOut.output || agentOut.text || agentOut.response || JSON.stringify(agentOut, null, 2);\n\nreturn [{\n  json: {\n    owner: event.owner,\n    repo: event.repo,\n    number: event.number,\n    eventType: event.eventType,\n    commentBody: body,\n    htmlUrl: event.htmlUrl\n  }\n}];"
+      },
+      "id": "b1b2c3d4-0006-4000-8000-000000000008",
+      "name": "Format Comment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1040, 300]
+    },
+    {
+      "parameters": {
+        "resource": "issueComment",
+        "operation": "create",
+        "owner": "={{ $json.owner }}",
+        "repository": "={{ $json.repo }}",
+        "issueNumber": "={{ $json.number }}",
+        "body": "={{ $json.commentBody }}"
+      },
+      "id": "b1b2c3d4-0006-4000-8000-000000000009",
+      "name": "Post GitHub Comment",
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1.1,
+      "position": [1280, 300],
+      "credentials": {
+        "githubApi": {
+          "id": "CONFIGURE_GITHUB_CREDENTIAL",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "### Code Companion — PR & Issue Triage Agent\n\n**Trigger:** GitHub `issues` + `pull_request` (opened, edited, synchronize, reopened)\n\n**Agent tools:**\n- **Code Fetcher Tool** → sub-workflow `06a - Code Fetcher Tool`\n- **Architecture RAG** → Qdrant collection `architecture_docs`\n\n**Setup checklist:**\n1. Set owner/repo on **GitHub Trigger**\n2. Add GitHub + Ollama + Qdrant credentials\n3. Import & run **06c - Ingest Architecture Docs** once\n4. Re-select **06a** workflow on **Code Fetcher Tool** node if needed\n5. Expose n8n via ngrok/tunnel so GitHub webhooks reach localhost\n6. Activate workflow\n\n**Model:** `qwen2.5-coder:7b` (tool-calling friendly). Swap in Ollama node if you prefer `deepseek-coder` or `codellama`.",
+        "height": 320,
+        "width": 460
+      },
+      "id": "b1b2c3d4-0006-4000-8000-000000000010",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [200, 40],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "### Webhook alternative\nReplace **GitHub Trigger** with a **Webhook** node (`POST /webhook/code-companion`) and map the payload in **Parse GitHub Event** if you use GitLab or a custom CI hook. Keep the agent chain unchanged.",
+        "height": 120,
+        "width": 460
+      },
+      "id": "b1b2c3d4-0006-4000-8000-000000000011",
+      "name": "Sticky Note Webhook",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [200, 520],
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "GitHub Trigger": {
+      "main": [[{ "node": "Parse GitHub Event", "type": "main", "index": 0 }]]
+    },
+    "Parse GitHub Event": {
+      "main": [[{ "node": "Code Companion Agent", "type": "main", "index": 0 }]]
+    },
+    "Code Companion Agent": {
+      "main": [[{ "node": "Format Comment", "type": "main", "index": 0 }]]
+    },
+    "Format Comment": {
+      "main": [[{ "node": "Post GitHub Comment", "type": "main", "index": 0 }]]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [[{ "node": "Code Companion Agent", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Code Fetcher Tool": {
+      "ai_tool": [[{ "node": "Code Companion Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "Architecture RAG": {
+      "ai_tool": [[{ "node": "Code Companion Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "Ollama Embeddings": {
+      "ai_embedding": [[{ "node": "Architecture RAG", "type": "ai_embedding", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

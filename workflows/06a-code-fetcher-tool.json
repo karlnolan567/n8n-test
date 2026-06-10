@@ -1,0 +1,266 @@
+{
+  "name": "06a - Code Fetcher Tool",
+  "nodes": [
+    {
+      "parameters": {
+        "events": "worklfow_call",
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "owner",
+              "type": "string"
+            },
+            {
+              "name": "repo",
+              "type": "string"
+            },
+            {
+              "name": "fetch_type",
+              "type": "string"
+            },
+            {
+              "name": "file_path",
+              "type": "string"
+            },
+            {
+              "name": "pull_number",
+              "type": "number"
+            },
+            {
+              "name": "ref",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "b1b2c3d4-006a-4000-8000-000000000001",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rule-pr-diff",
+                    "leftValue": "={{ $json.fetch_type }}",
+                    "rightValue": "pr_diff",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "pr_diff"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rule-pr-files",
+                    "leftValue": "={{ $json.fetch_type }}",
+                    "rightValue": "pr_files",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "pr_files"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "file"
+        }
+      },
+      "id": "b1b2c3d4-006a-4000-8000-000000000002",
+      "name": "Route Fetch Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ $json.owner }}/{{ $json.repo }}/contents/{{ $json.file_path }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ref",
+              "value": "={{ $json.ref || 'main' }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "b1b2c3d4-006a-4000-8000-000000000003",
+      "name": "Fetch File Contents",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [760, 480],
+      "credentials": {
+        "githubApi": {
+          "id": "CONFIGURE_GITHUB_CREDENTIAL",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const trigger = $('When Executed by Another Workflow').first().json;\nconst item = $input.first().json;\n\nlet content = '';\nif (item.content && item.encoding === 'base64') {\n  content = Buffer.from(item.content, 'base64').toString('utf8');\n} else if (typeof item === 'string') {\n  content = item;\n} else if (item.data) {\n  content = typeof item.data === 'string' ? item.data : JSON.stringify(item.data, null, 2);\n} else {\n  content = JSON.stringify(item, null, 2);\n}\n\nconst maxChars = 12000;\nif (content.length > maxChars) {\n  content = content.slice(0, maxChars) + '\\n\\n...[truncated at 12k chars]';\n}\n\nreturn [{\n  json: {\n    response: [\n      '## File: ' + trigger.file_path,\n      'Repo: ' + trigger.owner + '/' + trigger.repo,\n      'Ref: ' + (trigger.ref || 'main'),\n      '',\n      content\n    ].join('\\n')\n  }\n}];"
+      },
+      "id": "b1b2c3d4-006a-4000-8000-000000000004",
+      "name": "Format File Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 480]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ $json.owner }}/{{ $json.repo }}/pulls/{{ $json.pull_number }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github.diff"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "b1b2c3d4-006a-4000-8000-000000000005",
+      "name": "Fetch PR Diff",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [760, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const trigger = $('When Executed by Another Workflow').first().json;\nlet diff = $input.first().json.data || $input.first().json.body || '';\nif (typeof diff !== 'string') {\n  diff = JSON.stringify(diff, null, 2);\n}\n\nconst maxChars = 16000;\nif (diff.length > maxChars) {\n  diff = diff.slice(0, maxChars) + '\\n\\n...[diff truncated at 16k chars]';\n}\n\nreturn [{\n  json: {\n    response: [\n      '## Pull Request Diff',\n      'Repo: ' + trigger.owner + '/' + trigger.repo,\n      'PR #' + trigger.pull_number,\n      '',\n      diff\n    ].join('\\n')\n  }\n}];"
+      },
+      "id": "b1b2c3d4-006a-4000-8000-000000000006",
+      "name": "Format Diff Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ $json.owner }}/{{ $json.repo }}/pulls/{{ $json.pull_number }}/files",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "b1b2c3d4-006a-4000-8000-000000000007",
+      "name": "Fetch PR Files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [760, 120],
+      "credentials": {
+        "githubApi": {
+          "id": "CONFIGURE_GITHUB_CREDENTIAL",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const trigger = $('When Executed by Another Workflow').first().json;\nconst files = $input.all().map((item) => item.json);\n\nconst lines = files.map((file) => {\n  return [\n    '- ' + file.filename,\n    '  status: ' + file.status,\n    '  changes: +' + file.additions + ' / -' + file.deletions,\n    file.patch ? '  patch preview:\\n' + file.patch.slice(0, 1500) : '  (no patch in response)'\n  ].join('\\n');\n});\n\nreturn [{\n  json: {\n    response: [\n      '## Pull Request Changed Files',\n      'Repo: ' + trigger.owner + '/' + trigger.repo,\n      'PR #' + trigger.pull_number,\n      '',\n      lines.join('\\n\\n')\n    ].join('\\n')\n  }\n}];"
+      },
+      "id": "b1b2c3d4-006a-4000-8000-000000000008",
+      "name": "Format Files Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 120]
+    },
+    {
+      "parameters": {
+        "content": "### Code Fetcher Tool (sub-workflow)\nCalled by the **06 - Code Companion** AI Agent.\n\n**Inputs:**\n- `fetch_type`: `file` | `pr_diff` | `pr_files`\n- `file_path`: path when fetching a single file\n- `owner`, `repo`, `pull_number`, `ref`: passed from parent workflow\n\nAfter import, open the **Code Fetcher Tool** node in workflow 06 and select this workflow by name.",
+        "height": 220,
+        "width": 420
+      },
+      "id": "b1b2c3d4-006a-4000-8000-000000000009",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [200, 80],
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [[{ "node": "Route Fetch Type", "type": "main", "index": 0 }]]
+    },
+    "Route Fetch Type": {
+      "main": [
+        [{ "node": "Fetch PR Files", "type": "main", "index": 0 }],
+        [{ "node": "Fetch PR Diff", "type": "main", "index": 0 }],
+        [{ "node": "Fetch File Contents", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch File Contents": {
+      "main": [[{ "node": "Format File Response", "type": "main", "index": 0 }]]
+    },
+    "Fetch PR Diff": {
+      "main": [[{ "node": "Format Diff Response", "type": "main", "index": 0 }]]
+    },
+    "Fetch PR Files": {
+      "main": [[{ "node": "Format Files Response", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
