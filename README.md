@@ -2,7 +2,7 @@
 
 Self-hosted n8n with **Ollama** (free local LLM), **PostgreSQL**, **Qdrant** (local vector store), and sample pipelines for local automation testing.
 
-## Quick start
+## Quick start Karl
 
 ```bash
 # From this directory
