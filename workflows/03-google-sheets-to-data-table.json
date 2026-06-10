@@ -1,0 +1,156 @@
+{
+  "name": "03 - Google Sheets to Data Table",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "c1b2c3d4-0003-4000-8000-000000000001",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "options": {}
+      },
+      "id": "c1b2c3d4-0003-4000-8000-000000000002",
+      "name": "Read Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CONFIGURE_SHEETS_CREDENTIAL",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "c1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Process One Row",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r1",
+              "name": "row_id",
+              "value": "={{ $json.row_number || $itemIndex + 1 }}",
+              "type": "number"
+            },
+            {
+              "id": "r2",
+              "name": "name",
+              "value": "={{ $json.name || $json.Name || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "r3",
+              "name": "email",
+              "value": "={{ $json.email || $json.Email || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "r4",
+              "name": "status",
+              "value": "={{ $json.status || $json.Status || 'pending' }}",
+              "type": "string"
+            },
+            {
+              "id": "r5",
+              "name": "processed_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "r6",
+              "name": "raw_json",
+              "value": "={{ JSON.stringify($json) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c1b2c3d4-0003-4000-8000-000000000004",
+      "name": "Map Row Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [960, 300]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_id": "={{ $json.row_id }}",
+            "name": "={{ $json.name }}",
+            "email": "={{ $json.email }}",
+            "status": "={{ $json.status }}",
+            "processed_at": "={{ $json.processed_at }}",
+            "raw_json": "={{ $json.raw_json }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "c1b2c3d4-0003-4000-8000-000000000005",
+      "name": "Insert Data Table Row",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [1200, 300]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [[{ "node": "Read Google Sheet", "type": "main", "index": 0 }]]
+    },
+    "Read Google Sheet": {
+      "main": [[{ "node": "Process One Row", "type": "main", "index": 0 }]]
+    },
+    "Process One Row": {
+      "main": [
+        [{ "node": "Map Row Fields", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Map Row Fields": {
+      "main": [[{ "node": "Insert Data Table Row", "type": "main", "index": 0 }]]
+    },
+    "Insert Data Table Row": {
+      "main": [[{ "node": "Process One Row", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

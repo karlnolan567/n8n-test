@@ -1,0 +1,139 @@
+{
+  "name": "04 - Form Image Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "AI Image Generator",
+        "formDescription": "Describe the image you want. A free model will generate it locally via Pollinations.ai.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Image Description",
+              "fieldType": "textarea",
+              "requiredField": true,
+              "placeholder": "A serene mountain landscape at sunrise with mist in the valleys"
+            },
+            {
+              "fieldLabel": "Style (optional)",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  { "option": "photorealistic" },
+                  { "option": "illustration" },
+                  { "option": "watercolor" },
+                  { "option": "3d render" }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "buttonLabel": "Generate Image",
+          "path": "generate-image",
+          "appendAttribution": false
+        }
+      },
+      "id": "d1b2c3d4-0004-4000-8000-000000000001",
+      "name": "Form Trigger",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [240, 300],
+      "webhookId": "form-image-generator-webhook"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "p1",
+              "name": "fullPrompt",
+              "value": "={{ ($json['Image Description'] || $json.imageDescription || '').trim() + (($json['Style (optional)'] || $json.style) ? ', ' + ($json['Style (optional)'] || $json.style) + ' style' : '') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d1b2c3d4-0004-4000-8000-000000000002",
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://image.pollinations.ai/prompt/{{ encodeURIComponent($json.fullPrompt) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 120000
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "width", "value": "1024" },
+            { "name": "height", "value": "1024" },
+            { "name": "model", "value": "flux" },
+            { "name": "nologo", "value": "true" }
+          ]
+        }
+      },
+      "id": "d1b2c3d4-0004-4000-8000-000000000003",
+      "name": "Generate Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/data/shared/generated-{{ $now.toMillis() }}.jpg",
+        "options": {}
+      },
+      "id": "d1b2c3d4-0004-4000-8000-000000000004",
+      "name": "Save to Shared Folder",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [960, 300]
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "text",
+        "responseBody": "=Image generated successfully!\n\nPrompt: {{ $('Build Prompt').item.json.fullPrompt }}\n\nSaved to: {{ $json.fileName }}\n\nOpen the shared/ folder in this project to view the file.",
+        "options": {}
+      },
+      "id": "d1b2c3d4-0004-4000-8000-000000000005",
+      "name": "Form Response",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [1200, 300]
+    }
+  ],
+  "connections": {
+    "Form Trigger": {
+      "main": [[{ "node": "Build Prompt", "type": "main", "index": 0 }]]
+    },
+    "Build Prompt": {
+      "main": [[{ "node": "Generate Image", "type": "main", "index": 0 }]]
+    },
+    "Generate Image": {
+      "main": [[{ "node": "Save to Shared Folder", "type": "main", "index": 0 }]]
+    },
+    "Save to Shared Folder": {
+      "main": [[{ "node": "Form Response", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

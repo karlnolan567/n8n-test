@@ -1,0 +1,219 @@
+{
+  "id": "d6GzCvMEJakCd87a",
+  "name": "01 - Weekly AI News Scraper",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [1],
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Every Monday 8am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://techcrunch.com/category/artificial-intelligence/feed/",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000002",
+      "name": "TechCrunch AI RSS",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [480, 180]
+    },
+    {
+      "parameters": {
+        "url": "https://arxiv.org/rss/cs.AI",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000003",
+      "name": "arXiv cs.AI RSS",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [480, 420]
+    },
+    {
+      "parameters": {},
+      "id": "a1b2c3d4-0001-4000-8000-000000000004",
+      "name": "Merge Feeds",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;\nconst MAX_ARTICLES = 15;\n\nconst articles = $input.all()\n  .map(item => {\n    const pubDate = new Date(item.json.pubDate || item.json.isoDate || item.json.published || 0);\n    return {\n      title: item.json.title,\n      link: item.json.link,\n      pubDate: item.json.pubDate || item.json.isoDate,\n      source: item.json.creator || item.json.author || 'unknown',\n      summary: (item.json.contentSnippet || item.json.description || '').slice(0, 200),\n      pubTime: pubDate.getTime(),\n    };\n  })\n  .filter(item => item.pubTime >= oneWeekAgo)\n  .sort((a, b) => b.pubTime - a.pubTime)\n  .slice(0, MAX_ARTICLES)\n  .map(({ pubTime, ...rest }) => rest);\n\nreturn articles.map(item => ({ json: item }));"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000005",
+      "name": "Filter Last 7 Days",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 300]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000008",
+      "name": "Combine Articles",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1080, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.first().json.data || [];\n\nconst payload = {\n  model: 'llama3.2',\n  stream: false,\n  messages: [\n    {\n      role: 'user',\n      content:\n        'Summarize these AI news items from the past week into a concise bullet list with title and one-line takeaway for each. Items: ' +\n        JSON.stringify(\n          items.map((i) => ({\n            title: i.title,\n            summary: i.summary,\n            link: i.link,\n          })),\n        ),\n    },\n  ],\n  options: {\n    num_predict: 800,\n    temperature: 0.3,\n  },\n};\n\nreturn [{ json: payload }];"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000009",
+      "name": "Build Ollama Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/chat",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000006",
+      "name": "Ollama Summarize",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1320, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "out1",
+              "name": "weeklyDigest",
+              "value": "={{ $json.message.content }}",
+              "type": "string"
+            },
+            {
+              "id": "out2",
+              "name": "runDate",
+              "value": "={{ $now.toFormat('dd-MM-yyyy HH:mm:ss') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000007",
+      "name": "Format Digest",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { weeklyDigest, runDate } = $input.first().json;\n\nconst blocks = weeklyDigest.split(/\\n•\\s*/);\nconst rows = [];\n\nfor (const block of blocks) {\n  const trimmed = block.trim();\n  if (!trimmed.includes('**')) continue;\n\n  const match = trimmed.match(/\\*\\*(.+?)\\*\\*:\\s*([\\s\\S]+)/);\n  if (!match) continue;\n\n  rows.push({\n    runDate,\n    title: match[1].replace(/^\"|\"$/g, '').trim(),\n    takeaway: match[2].trim().replace(/\\s+/g, ' '),\n  });\n}\n\nif (rows.length === 0) {\n  rows.push({\n    runDate,\n    title: 'Digest parse failed',\n    takeaway: weeklyDigest.slice(0, 500),\n  });\n}\n\nreturn rows.map((json, index) => ({\n  json: { ...json, itemNumber: index + 1 },\n}));"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000011",
+      "name": "Split Digest Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1ywZducWBYVf4pS34-hu47WJrgNvD3QTtpJk5A3iDW4E/values/Sheet1!A:D:append",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "valueInputOption",
+              "value": "USER_ENTERED"
+            },
+            {
+              "name": "insertDataOption",
+              "value": "INSERT_ROWS"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { values: [[ $json.runDate, $json.itemNumber, $json.title, $json.takeaway ]] } }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000012",
+      "name": "Append to Google Sheet",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1920, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CONFIGURE_SHEETS_CREDENTIAL",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every Monday 8am": {
+      "main": [
+        [
+          { "node": "TechCrunch AI RSS", "type": "main", "index": 0 },
+          { "node": "arXiv cs.AI RSS", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "TechCrunch AI RSS": {
+      "main": [[{ "node": "Merge Feeds", "type": "main", "index": 0 }]]
+    },
+    "arXiv cs.AI RSS": {
+      "main": [[{ "node": "Merge Feeds", "type": "main", "index": 1 }]]
+    },
+    "Merge Feeds": {
+      "main": [[{ "node": "Filter Last 7 Days", "type": "main", "index": 0 }]]
+    },
+    "Filter Last 7 Days": {
+      "main": [[{ "node": "Combine Articles", "type": "main", "index": 0 }]]
+    },
+    "Combine Articles": {
+      "main": [[{ "node": "Build Ollama Request", "type": "main", "index": 0 }]]
+    },
+    "Build Ollama Request": {
+      "main": [[{ "node": "Ollama Summarize", "type": "main", "index": 0 }]]
+    },
+    "Ollama Summarize": {
+      "main": [[{ "node": "Format Digest", "type": "main", "index": 0 }]]
+    },
+    "Format Digest": {
+      "main": [[{ "node": "Split Digest Items", "type": "main", "index": 0 }]]
+    },
+    "Split Digest Items": {
+      "main": [[{ "node": "Append to Google Sheet", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

@@ -1,0 +1,635 @@
+{
+  "name": "05 - Intelligent Gmail Labeling",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "### Aggregate labels and update to message\nCreate array of label IDs and add to the desired email message in Gmail.",
+        "height": 347.0476323933831,
+        "width": 452.48413953150185
+      },
+      "id": "13f9ee87-f5de-413c-85a9-76c12e6ec9d7",
+      "name": "Sticky Note6",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2368,
+        192
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {},
+        "options": {}
+      },
+      "id": "ba130c10-955e-4e83-8da5-22583b54a7c6",
+      "name": "Gmail trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "position": [
+        704,
+        352
+      ],
+      "typeVersion": 1.2,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "CONFIGURE_GMAIL_CREDENTIAL",
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $('Gmail trigger').item.json.id }}",
+        "simple": false,
+        "options": {}
+      },
+      "id": "f3015e70-882c-4512-85f2-17183e36c4f7",
+      "name": "Get message content",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1728,
+        352
+      ],
+      "webhookId": "b773894c-18c6-454d-9271-6de10be1b7c4",
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "CONFIGURE_GMAIL_CREDENTIAL",
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Gmail trigger').item.json.text }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=As an AI Assistant, your task is to categorize the message according to the following labels\n\nQuotation - email on discussing new opportunities to work with existing / new client on a new project\nProject progress - email on discussing and confirming specifications, schedule and progress of projects\nInquiry - email about product / service support\nNotification - email that doesn't require response\n\nOne email can have more than one label. Return only label names in JSON format, nothing else. Do not make things up."
+            }
+          ]
+        }
+      },
+      "id": "c5142487-27bc-42ee-8926-b896506c5a23",
+      "name": "Assign labels for message",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "position": [
+        1344,
+        400
+      ],
+      "typeVersion": 1.5
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"labels\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\",\n        \"enum\": [\"Inquiry\", \"Quotation\", \"Project progress\", \"Notification\"]\n      }\n    }\n  },\n  \"required\": [\"labels\"]\n}"
+      },
+      "id": "0da976c0-0f10-48bb-9765-2cec3057f93b",
+      "name": "JSON Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "position": [
+        1488,
+        656
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "72d11a72-6693-447c-b7ca-4ba1a3579075",
+              "name": "labels",
+              "type": "array",
+              "value": "={{ $json.output.labels }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7a3de5ee-4312-4b61-af20-334e8f76e4bb",
+      "name": "Set label values",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        1600,
+        352
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "resource": "label",
+        "returnAll": true
+      },
+      "id": "d73670a2-3c05-4e6a-9c67-086dd00ed9ec",
+      "name": "Get all labels",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1824,
+        224
+      ],
+      "webhookId": "dec6f574-f47c-4b5d-86b9-2b0f6c957145",
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "CONFIGURE_GMAIL_CREDENTIAL",
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "labels",
+        "options": {}
+      },
+      "id": "f9c31b67-dc62-414e-a146-dfd058e43bcf",
+      "name": "Split out assigned labels",
+      "type": "n8n-nodes-base.splitOut",
+      "position": [
+        1824,
+        432
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail trigger').item.json[\"id\"] }}",
+        "labelIds": "={{ $json.label_ids }}"
+      },
+      "id": "fa5699dc-3cbf-4509-8ddb-d958dacffb08",
+      "name": "Add labels to message",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        2624,
+        288
+      ],
+      "webhookId": "4f345fc9-2afd-478b-be3b-d3d28f0fbc82",
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "CONFIGURE_GMAIL_CREDENTIAL",
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Intelligent Gmail Labeling: Categorize Emails by Content Intent Using OpenAI\n\n## Who is this for?\n\nThis workflow is ideal for Gmail users and teams who receive a high volume of emails and want to streamline inbox management. It suits professionals seeking to organize messages automatically, including sales teams, project managers, support staff, and anyone who benefits from automated email categorization.\n\n## What problem is this workflow solving? / Use case\n\nManually labeling emails is time-consuming and can lead to inconsistent organization. This automated n8n workflow uses Gmail and OpenAI to analyze incoming messages and apply the appropriate labels, such as \"Quotation\", \"Inquiry\", \"Project progress\", and \"Notification\", based on content\u2014improving productivity and ensuring important messages are prioritized.\n\n## What this workflow does\n\nThe workflow retrieves new Gmail messages, analyzes their content with OpenAI, and automatically assigns pre-defined Gmail labels that match the email\u2019s intent. This ensures emails are sorted efficiently using AI-powered content analysis and Gmail\u2019s labeling system.\n\n## Setup\n\n- Required Gmail labels are auto-created at workflow start if missing.\n- Connect your Gmail and OpenAI accounts as credentials in n8n.\n- Import the workflow into your n8n instance and update node configurations to match your Gmail label names.\n\n## How to customize this workflow to your needs\n\n- Edit or add Gmail labels both in your Gmail account and within the workflow logic.\n- Adjust the prompt or parameters sent to OpenAI to better match your categorization style.\n- Expand or refine the list of label categories to fit your team\u2019s or business\u2019s requirements.\n",
+        "height": 1041,
+        "width": 580,
+        "color": 4
+      },
+      "id": "a3ff2e4a-dda2-4fd0-b42c-13b1a2155059",
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        0,
+        0
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "### Gmail Trigger\nGet new incoming message from Gmail. \n\n\u26a0\ufe0f Set up the time (polling) interval based on your needs.",
+        "height": 349,
+        "width": 238
+      },
+      "id": "c8caa927-89b2-4448-b944-2117ef4faca9",
+      "name": "Sticky Note13",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        640,
+        160
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "###\n\n\n\n\n\n\n\n\n\n\n### JSON schema\nEdit JSON schema and label names according to your needs.\n\n\u26a0\ufe0f **Label names in system prompt and JSON schema should be the same.**",
+        "height": 319.3323098457962,
+        "width": 241.53974014153226
+      },
+      "id": "6521cb16-0be3-4a41-b8aa-d1c2efcae347",
+      "name": "Sticky Note14",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1424,
+        544
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "### Resolve label IDs\nMatches AI-assigned categories to Gmail label IDs. Requires labels to exist (auto-created at workflow start).",
+        "height": 347.0476323933831,
+        "width": 226.14233872620645
+      },
+      "id": "8219512b-47aa-4de3-9374-21b543b829ba",
+      "name": "Sticky Note15",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2112,
+        192
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "### Get message content\nBased on Gmail message ID retrieve body content of the email and pass it to AI chain.",
+        "height": 348.5873725349161,
+        "width": 238.4602598584674
+      },
+      "id": "33c01de0-80a2-4a1a-891a-317190dfbc4d",
+      "name": "Sticky Note16",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        912,
+        160
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "### Assign labels\nLet the AI decide which labels suit the best content of the message.\n\n\u26a0\ufe0f **Remember to edit system prompt** - modify label names and instructions according to your needs.",
+        "height": 365,
+        "width": 379
+      },
+      "id": "0d84b1c7-fcee-472b-923e-30366839336e",
+      "name": "Sticky Note17",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1168,
+        160
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "model": "llama3.2:latest",
+        "options": {
+          "think": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        560
+      ],
+      "id": "049f7bad-50c0-4dfd-900f-aad1dc7eb998",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "CONFIGURE_OLLAMA_CREDENTIAL",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "label",
+        "returnAll": true
+      },
+      "id": "f8a3c2b1-4d5e-6f70-8192-a3b4c5d6e7f8",
+      "name": "Get existing labels (ensure)",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        832,
+        352
+      ],
+      "typeVersion": 2.1,
+      "webhookId": "6e520f03-344f-48e2-93bb-eefedc4215ff",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "CONFIGURE_GMAIL_CREDENTIAL",
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const required = ['Quotation', 'Project progress', 'Inquiry', 'Notification'];\nconst existingNames = new Set(\n  $('Get existing labels (ensure)').all().map((item) => item.json.name)\n);\n\nconst missing = required.filter((name) => !existingNames.has(name));\n\nif (missing.length === 0) {\n  return [{ json: { skipCreate: true } }];\n}\n\nreturn missing.map((name) => ({ json: { name } }));"
+      },
+      "id": "e7b2a1c0-3d4e-5f60-7081-92a3b4c5d6e7",
+      "name": "Find missing labels",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1008,
+        352
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567891",
+              "leftValue": "={{ $json.name }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d6a1b0c9-2c3d-4e50-6070-81a2b3c4d5e6",
+      "name": "Missing labels to create?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1184,
+        384
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "resource": "label",
+        "operation": "create",
+        "name": "={{ $json.name }}",
+        "options": {}
+      },
+      "id": "c5b0a9d8-1b2c-3d40-5060-70a1b2c3d4e5",
+      "name": "Create missing label",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1360,
+        272
+      ],
+      "typeVersion": 2.1,
+      "webhookId": "92f71a74-7459-43e1-b882-7dd2aa713131",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "CONFIGURE_GMAIL_CREDENTIAL",
+          "name": "Gmail OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { labelsReady: true } }];"
+      },
+      "id": "a9b8c7d6-e5f4-3210-abcd-ef9876543210",
+      "name": "Resume after label create",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1552,
+        272
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "content": "### Ensure labels exist\nCreates **Quotation**, **Project progress**, **Inquiry**, and **Notification** in Gmail if missing.",
+        "height": 120,
+        "width": 680
+      },
+      "id": "b4a9c8d7-0a1b-2c30-4050-60a0b1c2d3e4",
+      "name": "Sticky Note18",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        704,
+        64
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "const aiLabels = $('Split out assigned labels').all().map((item) => item.json.labels);\nconst gmailLabels = $('Get all labels').all();\n\nconst labelIds = [];\nconst missing = [];\n\nfor (const name of aiLabels) {\n  const match = gmailLabels.find((g) => g.json.name === name);\n  if (match) {\n    labelIds.push(match.json.id);\n  } else {\n    missing.push(name);\n  }\n}\n\nif (labelIds.length === 0) {\n  throw new Error(\n    'No matching Gmail labels for AI categories: ' +\n      aiLabels.join(', ') +\n      '. Missing in Gmail: ' +\n      missing.join(', ') +\n      '. Run from Gmail trigger so labels are auto-created, or create them manually.'\n  );\n}\n\nreturn [{ json: { label_ids: labelIds, matched: labelIds.length, missing } }];"
+      },
+      "id": "b1c2d3e4-f5a6-7890-bcde-f12345678902",
+      "name": "Resolve label IDs",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2160,
+        384
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {},
+      "id": "c2d3e4f5-a6b7-8901-cdef-234567890123",
+      "name": "Wait for both branches",
+      "type": "n8n-nodes-base.merge",
+      "position": [
+        2048,
+        384
+      ],
+      "typeVersion": 3.1
+    }
+  ],
+  "connections": {
+    "JSON Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Assign labels for message",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail trigger": {
+      "main": [
+        [
+          {
+            "node": "Get existing labels (ensure)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get all labels": {
+      "main": [
+        [
+          {
+            "node": "Wait for both branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set label values": {
+      "main": [
+        [
+          {
+            "node": "Split out assigned labels",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get all labels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get message content": {
+      "main": [
+        [
+          {
+            "node": "Assign labels for message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assign labels for message": {
+      "main": [
+        [
+          {
+            "node": "Set label values",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split out assigned labels": {
+      "main": [
+        [
+          {
+            "node": "Wait for both branches",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Assign labels for message",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get existing labels (ensure)": {
+      "main": [
+        [
+          {
+            "node": "Find missing labels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find missing labels": {
+      "main": [
+        [
+          {
+            "node": "Missing labels to create?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Missing labels to create?": {
+      "main": [
+        [
+          {
+            "node": "Create missing label",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get message content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create missing label": {
+      "main": [
+        [
+          {
+            "node": "Resume after label create",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume after label create": {
+      "main": [
+        [
+          {
+            "node": "Get message content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve label IDs": {
+      "main": [
+        [
+          {
+            "node": "Add labels to message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for both branches": {
+      "main": [
+        [
+          {
+            "node": "Resolve label IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "timezone": "Etc/GMT",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

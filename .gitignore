@@ -1,0 +1,4 @@
+.env
+shared/*
+!shared/.gitkeep
+n8n_data/
