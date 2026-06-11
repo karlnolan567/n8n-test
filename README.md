@@ -246,7 +246,7 @@ An autonomous **AI Agent** (Ollama `qwen2.5-coder:7b`) acts as a local staff eng
 
 6. **Configure main workflow:**
 
-   - Open **06 - Code Companion PR and Issue Triage to Notify issues**
+   - Open **06 - Code Companion PR and Issue Triage**
    - Set **owner** and **repository** on the GitHub Trigger node
    - Assign GitHub, Ollama, and Qdrant credentials on all nodes
    - On **Code Fetcher Tool**, confirm sub-workflow **06a - Code Fetcher Tool** is selected
