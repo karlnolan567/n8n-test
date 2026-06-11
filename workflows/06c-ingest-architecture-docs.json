@@ -11,7 +11,7 @@
     },
     {
       "parameters": {
-        "fileSelector": "/data/docs/**/*.md",
+        "fileSelector": "/data/architecture/*.md",
         "options": {}
       },
       "id": "b1b2c3d4-006c-4000-8000-000000000002",
@@ -87,7 +87,7 @@
     },
     {
       "parameters": {
-        "content": "### Ingest Architecture Docs\nRun once (or after editing `docs/`) to populate the **architecture_docs** Qdrant collection.\n\n1. Add **Ollama** credential → `http://ollama:11434`\n2. Add **Qdrant** credential → `http://qdrant:6333`\n3. Pull embedding model: `docker exec -it ollama ollama pull nomic-embed-text`\n4. Click **Execute Workflow**\n\nDocs are read from `/data/docs/` (mounted from `./docs` in this repo).",
+        "content": "### Ingest Architecture Docs\nRun once to populate the **architecture_docs** Qdrant collection.\n\n**Path inside Docker:** `/data/architecture/*.md`\n(mounted from `./improve-codebase-architecture/` in this repo)\n\nAlso available: `/data/docs/**/*.md` from `./docs/`\n\n1. **Ollama** credential → `http://ollama:11434`\n2. **Qdrant** credential → `http://qdrant:6333`\n3. `docker exec -it ollama ollama pull nomic-embed-text`\n4. `docker compose up -d` after adding new markdown files\n5. **Execute Workflow**",
         "height": 240,
         "width": 420
       },
