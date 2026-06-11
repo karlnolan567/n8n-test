@@ -77,7 +77,7 @@ docker compose up -d n8n
 echo ""
 echo "Done. Next steps:"
 echo "  1. Open n8n: ${PUBLIC_URL}"
-echo "  2. Activate workflow: 06 - Code Companion PR and Issue Triage"
+echo "  2. Activate workflow: 06 - Code Companion PR and Issue Triage to Notify issues"
 echo "  3. Keep ngrok running (PID $(cat "$ROOT/shared/ngrok.pid" 2>/dev/null || echo 'see shared/ngrok.log'))"
 echo ""
 echo "ngrok inspector: http://127.0.0.1:4040"
