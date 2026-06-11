@@ -235,7 +235,7 @@ An autonomous **AI Agent** (Ollama `qwen2.5-coder:7b`) acts as a local staff eng
 
 3. **Ollama credential** — **Credentials → Ollama** → Base URL `http://ollama:11434`
 
-4. **Qdrant credential** — **Credentials → Qdrant** → URL `http://qdrant:6333` (no API key needed locally)
+4. **Qdrant credential** — **Credentials → Qdrant** → see [Qdrant URL notes](#qdrant-url-notes) below (no API key for local)
 
 5. **Ingest architecture docs** (run once):
 
@@ -343,6 +343,35 @@ Custom labels must exist in Gmail. The workflow creates them automatically when 
 ```bash
 docker compose exec n8n n8n import:workflow --separate --input=/demo-data/workflows
 ```
+
+#### Qdrant URL notes
+
+`http://qdrant:6333` **only works inside Docker** (n8n credential field). It will **not** open in your Mac browser.
+
+| Where | URL |
+|-------|-----|
+| **n8n credential** (try first) | `http://qdrant:6333/` |
+| **n8n credential** (fallback on Mac) | `http://host.docker.internal:6333/` |
+| **Browser on your Mac** | http://localhost:6333/dashboard |
+| **API key** | Leave **empty** for local Qdrant |
+
+If **Test connection** fails but the URL is correct, click **Save** anyway and run **06c** — the test button is sometimes wrong for local Qdrant.
+
+Verify from terminal:
+
+```bash
+curl http://localhost:6333/          # should return JSON with "qdrant - vector search engine"
+docker compose exec n8n wget -qO- http://qdrant:6333/   # should work from n8n container
+```
+
+**Read Architecture Docs: "Access to the file is not allowed"**
+
+n8n 2.x restricts disk access. This stack sets `N8N_RESTRICT_FILE_ACCESS_TO=/data;/home/node/.n8n-files` in `docker-compose.yml`. Use container paths only:
+
+- `/data/architecture/*.md` → `./improve-codebase-architecture/`
+- `/data/docs/**/*.md` → `./docs/`
+
+After changing `docker-compose.yml`, run `docker compose up -d` to restart n8n.
 
 **Code Companion: agent skips tools or posts empty comment**
 

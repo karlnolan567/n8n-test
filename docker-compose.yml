@@ -30,6 +30,7 @@ x-n8n: &service-n8n
     - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
     - TZ=${TZ}
     - OLLAMA_HOST=${OLLAMA_HOST:-ollama:11434}
+    - N8N_RESTRICT_FILE_ACCESS_TO=/data;/home/node/.n8n-files
   env_file:
     - .env
 
@@ -67,6 +68,7 @@ services:
     restart: unless-stopped
     ports:
       - '6333:6333'
+      - '6334:6334'
     volumes:
       - qdrant_storage:/qdrant/storage
 
@@ -125,6 +127,7 @@ services:
       - ./workflows:/demo-data/workflows:ro
       - ./shared:/data/shared
       - ./docs:/data/docs:ro
+      - ./improve-codebase-architecture:/data/architecture:ro
     depends_on:
       postgres:
         condition: service_healthy
