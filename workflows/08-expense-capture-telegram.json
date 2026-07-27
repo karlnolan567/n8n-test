@@ -1135,6 +1135,7 @@
       "name": "Disable Buttons Approved",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
+      "onError": "continueRegularOutput",
       "position": [
         1520,
         40
@@ -1166,6 +1167,7 @@
       "name": "Disable Buttons Rejected",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
+      "onError": "continueRegularOutput",
       "position": [
         1520,
         220
@@ -1455,6 +1457,7 @@
       "name": "Update Chat Final Card",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
       "position": [
         2180,
         120
