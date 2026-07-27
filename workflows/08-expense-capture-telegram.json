@@ -1,0 +1,1179 @@
+{
+  "id": "expense-capture-telegram-001",
+  "name": "08 - Expense Capture Telegram",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Expense Capture (local demo)\n\n1. Allowlisted user sends a **photo/image file** (no /start caption needed)\n2. OpenRouter (`google/gemini-2.5-flash`) extracts fields\n3. Row appended to Sheet with `pending approval`\n4. **Inline Approve/Reject buttons** in Telegram (no browser redirect)\n5. Sheet status updated; buttons cleared + status on message\n\n`/start` \u2192 help text.\n\nCredentials: Telegram Expense Capture \u00b7 OpenRouter Expense N8N \u00b7 Google Sheets account",
+        "height": 380,
+        "width": 420
+      },
+      "id": "sticky-expense-001",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ],
+        "additionalFields": {
+          "download": true,
+          "imageSize": "large"
+        }
+      },
+      "id": "tg-trigger-001",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        280,
+        400
+      ],
+      "webhookId": "expense-capture-telegram-trigger",
+      "credentials": {
+        "telegramApi": {
+          "id": "mNLRMbumJp8Nifvy",
+          "name": "Telegram Expense Capture"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-photo",
+              "leftValue": "={{ (() => {\n  const m = $json.message || {};\n  if (m.photo && m.photo.length) return true;\n  const d = m.document || {};\n  const mime = String(d.mime_type || \"\");\n  if (mime.startsWith(\"image/\")) return true;\n  const name = String(d.file_name || \"\").toLowerCase();\n  return /\\.(png|jpe?g|webp|gif|heic|heif|bmp|tif{1,2})$/.test(name);\n})() }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-has-photo-001",
+      "name": "Has Photo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        640,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-start",
+              "leftValue": "={{ ($json.message && $json.message.text) || '' }}",
+              "rightValue": "/start",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-is-start-001",
+      "name": "Is /start?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        760,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "Just send a receipt photo or image file (PNG/JPG) \u2014 no caption needed.\n\nI will extract the details, add a Sheet row as pending approval, and show Approve/Reject buttons here in Telegram.\n\n/start only shows this help message.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "tg-help-001",
+      "name": "Reply Help",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1000,
+        520
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "mNLRMbumJp8Nifvy",
+          "name": "Telegram Expense Capture"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "I only process receipt images. Send a photo or image file (PNG/JPG) with no special caption.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "tg-need-photo-001",
+      "name": "Reply Need Photo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1000,
+        720
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "mNLRMbumJp8Nifvy",
+          "name": "Telegram Expense Capture"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst msg = item.json.message || {};\nconst from = msg.from || {};\nconst binaryKey = Object.keys(item.binary || {})[0];\nif (!binaryKey) {\n  return [{ json: { ok: false, chatId: msg.chat && msg.chat.id, error: 'No image binary on message (send as photo or image file)' } }];\n}\nconst meta = item.binary[binaryKey];\nconst buf = await this.helpers.getBinaryDataBuffer(0, binaryKey);\nconst mime = meta.mimeType || (msg.document && msg.document.mime_type) || 'image/jpeg';\nif (!String(mime).startsWith('image/')) {\n  return [{ json: { ok: false, chatId: msg.chat && msg.chat.id, error: 'File is not an image' } }];\n}\nconst dataUrl = `data:${mime};base64,${buf.toString('base64')}`;\nconst recordId = 'exp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);\nconst capturedAt = new Date().toISOString();\nconst telegramUser = [from.username, from.id].filter(Boolean).join(' / ') || String(from.id || '');\nconst chatId = msg.chat && msg.chat.id;\n\nconst extractPrompt = `Extract expense fields from this receipt image. Return ONLY valid JSON (no markdown) with keys:\\n{\\n  \\\"date\\\": \\\"YYYY-MM-DD or empty string\\\",\\n  \\\"vendor\\\": \\\"merchant name\\\",\\n  \\\"amount\\\": \\\"total as number string\\\",\\n  \\\"currency\\\": \\\"ISO code e.g. EUR\\\",\\n  \\\"tax\\\": \\\"tax/VAT if visible else empty\\\",\\n  \\\"category\\\": \\\"meals|travel|supplies|other\\\",\\n  \\\"notes\\\": \\\"short gist of line items\\\"\\n}\\nIf this is not a usable receipt, return {\\\"error\\\":\\\"unusable\\\"}.`;\n\nreturn [{\n  json: {\n    ok: true,\n    recordId,\n    capturedAt,\n    telegramUser,\n    chatId,\n    extractPrompt,\n    dataUrl,\n    mime\n  },\n  binary: item.binary\n}];"
+      },
+      "id": "code-prep-001",
+      "name": "Prep Image + Meta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-prep-ok",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-prep-ok-001",
+      "name": "Image Ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        900,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'google/gemini-2.5-flash', messages: [{ role: 'user', content: [{ type: 'text', text: $json.extractPrompt }, { type: 'image_url', image_url: { url: $json.dataUrl } }] }] }) }}",
+        "options": {
+          "timeout": 120000,
+          "redirect": {
+            "redirect": {}
+          }
+        }
+      },
+      "id": "http-openrouter-001",
+      "name": "OpenRouter Vision Extract",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        200
+      ],
+      "continueOnFail": true,
+      "credentials": {
+        "openRouterApi": {
+          "id": "GbWxyoiTDgAOOz1u",
+          "name": "OpenRouter Expense N8N"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "const prep = $('Prep Image + Meta').first().json;\nconst raw = $input.first().json;\nif (raw.error || raw.message === 'No endpoints found' || (raw.error && raw.error.message)) {\n  const msg = (raw.error && (raw.error.message || raw.error.description)) || raw.description || raw.message || 'OpenRouter request failed';\n  return [{ json: { ok: false, chatId: prep.chatId, error: String(msg) } }];\n}\nconst content = (((raw.choices || [])[0] || {}).message || {}).content || '';\nlet text = typeof content === 'string' ? content : JSON.stringify(content);\ntext = text.replace(/^```json\\s*/i, '').replace(/^```\\s*/i, '').replace(/```$/i, '').trim();\nlet parsed;\ntry {\n  parsed = JSON.parse(text);\n} catch (e) {\n  return [{ json: { ok: false, chatId: prep.chatId, error: 'Could not parse model JSON', raw: text.slice(0, 500) } }];\n}\nif (parsed.error || (!parsed.vendor && !parsed.amount)) {\n  return [{ json: { ok: false, chatId: prep.chatId, error: 'Photo does not look like a usable receipt', raw: parsed } }];\n}\nreturn [{\n  json: {\n    ok: true,\n    recordId: prep.recordId,\n    date: parsed.date || '',\n    vendor: parsed.vendor || '',\n    amount: parsed.amount || '',\n    currency: parsed.currency || '',\n    tax: parsed.tax || '',\n    category: parsed.category || '',\n    notes: parsed.notes || '',\n    status: 'pending approval',\n    capturedAt: prep.capturedAt,\n    telegramUser: prep.telegramUser,\n    chatId: prep.chatId\n  }\n}];"
+      },
+      "id": "code-parse-001",
+      "name": "Parse Extraction",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-ok",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-extract-ok-001",
+      "name": "Extract OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1480,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ (() => {\n  const err = String($json.error || \"unknown error\");\n  const transient = /connection|offline|timeout|ECONN|closed unexpectedly/i.test(err);\n  if (transient) {\n    return \"Temporary AI connection issue while reading that receipt. Please send the same image again in a few seconds.\";\n  }\n  return \"Could not extract an expense from that photo: \" + err + \". Please try a clearer receipt photo.\";\n})() }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "tg-extract-fail-001",
+      "name": "Reply Extract Failed",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1720,
+        420
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "mNLRMbumJp8Nifvy",
+          "name": "Telegram Expense Capture"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1rr11LMrAzXM9uwBCUlMzfdR6QCl0x7aluJQaZBP4Bo0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "recordId": "={{ $('Parse Extraction').item.json.recordId }}",
+            "date": "={{ $('Parse Extraction').item.json.date }}",
+            "vendor": "={{ $('Parse Extraction').item.json.vendor }}",
+            "amount": "={{ $('Parse Extraction').item.json.amount }}",
+            "currency": "={{ $('Parse Extraction').item.json.currency }}",
+            "tax": "={{ $('Parse Extraction').item.json.tax }}",
+            "category": "={{ $('Parse Extraction').item.json.category }}",
+            "notes": "={{ $('Parse Extraction').item.json.notes }}",
+            "status": "={{ $('Parse Extraction').item.json.status }}",
+            "capturedAt": "={{ $('Parse Extraction').item.json.capturedAt }}",
+            "telegramUser": "={{ $('Parse Extraction').item.json.telegramUser }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "recordId",
+              "displayName": "recordId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "vendor",
+              "displayName": "vendor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "amount",
+              "displayName": "amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "currency",
+              "displayName": "currency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tax",
+              "displayName": "tax",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "capturedAt",
+              "displayName": "capturedAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telegramUser",
+              "displayName": "telegramUser",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "sheets-append-001",
+      "name": "Append Pending Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1960,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "DTUZRcJpeIe7w4eK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-approved",
+              "leftValue": "={{ $json.approved }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-approved-001",
+      "name": "Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1080,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1rr11LMrAzXM9uwBCUlMzfdR6QCl0x7aluJQaZBP4Bo0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "recordId": "={{ $('Parse Callback').item.json.recordId }}",
+            "status": "approved"
+          },
+          "matchingColumns": [
+            "recordId"
+          ],
+          "schema": [
+            {
+              "id": "recordId",
+              "displayName": "recordId",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "sheets-approved-001",
+      "name": "Mark Approved",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1300,
+        40
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "DTUZRcJpeIe7w4eK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1rr11LMrAzXM9uwBCUlMzfdR6QCl0x7aluJQaZBP4Bo0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "recordId": "={{ $('Parse Callback').item.json.recordId }}",
+            "status": "rejected"
+          },
+          "matchingColumns": [
+            "recordId"
+          ],
+          "schema": [
+            {
+              "id": "recordId",
+              "displayName": "recordId",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "sheets-rejected-001",
+      "name": "Mark Rejected",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1300,
+        220
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "DTUZRcJpeIe7w4eK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-cb",
+              "leftValue": "={{ Boolean($json.callback_query) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-callback-001",
+      "name": "Is Callback?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        400,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const cq = $json.callback_query || {};\nconst from = cq.from || {};\nconst msg = cq.message || {};\nconst chatId = (msg.chat && msg.chat.id) || (from && from.id);\nconst queryId = cq.id;\nconst messageId = msg.message_id;\nconst originalText = msg.text || '';\nconst raw = String(cq.data || '');\nconst parts = raw.split(':');\nconst action = (parts[0] || '').toLowerCase();\nconst recordId = parts.slice(1).join(':');\nif (String(from.id) !== '7813999484') {\n  return [{ json: { ok: false, chatId, queryId, messageId, error: 'Unauthorized approver' } }];\n}\nif (!recordId || (action !== 'approve' && action !== 'reject')) {\n  return [{ json: { ok: false, chatId, queryId, messageId, error: 'Unknown approval action' } }];\n}\nreturn [{ json: { ok: true, approved: action === 'approve', recordId, chatId, queryId, messageId, originalText } }];"
+      },
+      "id": "code-callback-001",
+      "name": "Parse Callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-cb-ok",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-callback-ok-001",
+      "name": "Callback OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        860,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Extraction').item.json.chatId }}",
+        "text": "=Expense pending approval\n\nrecordId: {{ $('Parse Extraction').item.json.recordId }}\nvendor: {{ $('Parse Extraction').item.json.vendor }}\namount: {{ $('Parse Extraction').item.json.amount }} {{ $('Parse Extraction').item.json.currency }}\ndate: {{ $('Parse Extraction').item.json.date }}\ncategory: {{ $('Parse Extraction').item.json.category }}\nnotes: {{ $('Parse Extraction').item.json.notes }}\n\nTap Approve or Reject:",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "Approve",
+                    "additionalFields": {
+                      "callback_data": "={{ 'approve:' + $('Parse Extraction').item.json.recordId }}"
+                    }
+                  },
+                  {
+                    "text": "Reject",
+                    "additionalFields": {
+                      "callback_data": "={{ 'reject:' + $('Parse Extraction').item.json.recordId }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "tg-approve-buttons-001",
+      "name": "Send Approval Buttons",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        200
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "mNLRMbumJp8Nifvy",
+          "name": "Telegram Expense Capture"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $('Parse Callback').item.json.queryId }}",
+        "additionalFields": {
+          "text": "Approved",
+          "show_alert": false
+        }
+      },
+      "id": "tg-answer-approved-001",
+      "name": "Answer Approved Callback",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1760,
+        40
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "mNLRMbumJp8Nifvy",
+          "name": "Telegram Expense Capture"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $('Parse Callback').item.json.queryId }}",
+        "additionalFields": {
+          "text": "Rejected",
+          "show_alert": false
+        }
+      },
+      "id": "tg-answer-rejected-001",
+      "name": "Answer Rejected Callback",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1760,
+        220
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "mNLRMbumJp8Nifvy",
+          "name": "Telegram Expense Capture"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $json.queryId }}",
+        "additionalFields": {
+          "text": "={{ $json.error || 'Could not process approval' }}",
+          "show_alert": true
+        }
+      },
+      "id": "tg-answer-bad-001",
+      "name": "Answer Bad Callback",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1080,
+        280
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "mNLRMbumJp8Nifvy",
+          "name": "Telegram Expense Capture"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-user",
+              "leftValue": "={{ String($json.message && $json.message.from && $json.message.from.id) }}",
+              "rightValue": "7813999484",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-allowed-user-001",
+      "name": "Allowed User?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        520,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "editMessageText",
+        "messageType": "message",
+        "chatId": "={{ $('Parse Callback').item.json.chatId }}",
+        "messageId": "={{ $('Parse Callback').item.json.messageId }}",
+        "text": "={{ (() => {\n  const base = String($('Parse Callback').item.json.originalText || '');\n  const cleaned = base.replace(/\\nTap Approve or Reject:?\\s*$/i, '').trim();\n  return cleaned + '\\n\\nStatus: APPROVED';\n})() }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": []
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "tg-disable-approved-001",
+      "name": "Disable Buttons Approved",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1520,
+        40
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "mNLRMbumJp8Nifvy",
+          "name": "Telegram Expense Capture"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "editMessageText",
+        "messageType": "message",
+        "chatId": "={{ $('Parse Callback').item.json.chatId }}",
+        "messageId": "={{ $('Parse Callback').item.json.messageId }}",
+        "text": "={{ (() => {\n  const base = String($('Parse Callback').item.json.originalText || '');\n  const cleaned = base.replace(/\\nTap Approve or Reject:?\\s*$/i, '').trim();\n  return cleaned + '\\n\\nStatus: REJECTED';\n})() }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": []
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "tg-disable-rejected-001",
+      "name": "Disable Buttons Rejected",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1520,
+        220
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "mNLRMbumJp8Nifvy",
+          "name": "Telegram Expense Capture"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Is Callback?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Callback?": {
+      "main": [
+        [
+          {
+            "node": "Parse Callback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Allowed User?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Callback": {
+      "main": [
+        [
+          {
+            "node": "Callback OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Callback OK?": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Answer Bad Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "Mark Approved",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Approved": {
+      "main": [
+        [
+          {
+            "node": "Disable Buttons Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Rejected": {
+      "main": [
+        [
+          {
+            "node": "Disable Buttons Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Photo?": {
+      "main": [
+        [
+          {
+            "node": "Prep Image + Meta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is /start?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is /start?": {
+      "main": [
+        [
+          {
+            "node": "Reply Help",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Need Photo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Image + Meta": {
+      "main": [
+        [
+          {
+            "node": "Image Ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Image Ready?": {
+      "main": [
+        [
+          {
+            "node": "OpenRouter Vision Extract",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Extract Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Vision Extract": {
+      "main": [
+        [
+          {
+            "node": "Parse Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Extraction": {
+      "main": [
+        [
+          {
+            "node": "Extract OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract OK?": {
+      "main": [
+        [
+          {
+            "node": "Append Pending Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply Extract Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Pending Row": {
+      "main": [
+        [
+          {
+            "node": "Send Approval Buttons",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Allowed User?": {
+      "main": [
+        [
+          {
+            "node": "Has Photo?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Disable Buttons Approved": {
+      "main": [
+        [
+          {
+            "node": "Answer Approved Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Disable Buttons Rejected": {
+      "main": [
+        [
+          {
+            "node": "Answer Rejected Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
