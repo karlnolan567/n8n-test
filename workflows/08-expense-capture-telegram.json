@@ -5,7 +5,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Expense Capture (local demo)\n\n1. Allowlisted user sends a **photo/image file** (no /start caption needed)\n2. OpenRouter (`google/gemini-2.5-flash`) extracts fields\n3. Row appended to Sheet with `pending approval`\n4. **Inline Approve/Reject buttons** in Telegram (no browser redirect)\n5. Sheet status updated; buttons cleared + status on message\n\n`/start` \u2192 help text.\n\nCredentials: Telegram Expense Capture \u00b7 OpenRouter Expense N8N \u00b7 Google Sheets account",
+        "content": "## Expense Capture (local demo)\n\n1. Allowlisted user sends a **photo/image file** (no /start caption needed)\n2. OpenRouter (`google/gemini-2.5-flash`) extracts fields\n3. Row appended to Sheet with `pending approval`\n4. **Inline Approve/Reject buttons** in Telegram (no browser redirect)\n5. Pending Cards v2 sent to the configured Google Chat **1:1 DM**\n6. Sheet status updated; buttons cleared + status on message\n\nSet `Chat DM Config` → `spaceId` to the 1:1 DM resource (`spaces/...`) locally before activating. Do not use a group space. Optional local env convention: `EXPENSE_CHAT_DM_SPACE_ID` / `GOOGLE_CHAT_DM_SPACE_ID`.\n\n`/start` \u2192 help text.\n\nCredentials: Telegram Expense Capture \u00b7 OpenRouter Expense N8N \u00b7 Google Sheets account \u00b7 Google Chat Expense Capture",
         "height": 380,
         "width": 420
       },
@@ -884,6 +884,131 @@
     },
     {
       "parameters": {
+        "jsCode": "// Operator configuration: replace with the 1:1 Google Chat DM space for this Chat app.\n// Keep the exported placeholder; do not commit a personal space id.\nreturn [{ json: { spaceId: 'spaces/REPLACE_ME' } }];"
+      },
+      "id": "code-chat-dm-config-001",
+      "name": "Chat DM Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2680,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const expense = $('Parse Extraction').first().json;\nconst spaceId = String($json.spaceId || '');\n\nfunction widgetText(labeledText) {\n  return { textParagraph: { text: labeledText } };\n}\n\nfunction buildPendingExpenseCard({ recordId, vendor, amount, currency, date, category, notes, telegramDisplayName }) {\n  return {\n    cardsV2: [\n      {\n        cardId: `expense-${recordId}`,\n        card: {\n          header: {\n            title: 'Expense pending approval',\n            subtitle: String(telegramDisplayName || ''),\n          },\n          sections: [\n            {\n              widgets: [\n                widgetText(`<b>Vendor:</b> ${vendor || ''}`),\n                widgetText(`<b>Amount:</b> ${amount || ''} ${currency || ''}`),\n                widgetText(`<b>Date:</b> ${date || ''}`),\n                widgetText(`<b>Category:</b> ${category || ''}`),\n                widgetText(`<b>Notes:</b> ${notes || ''}`),\n                widgetText(`<b>recordId:</b> ${recordId || ''}`),\n              ],\n            },\n            {\n              widgets: [\n                {\n                  buttonList: {\n                    buttons: [\n                      {\n                        text: 'Approve',\n                        onClick: {\n                          action: {\n                            function: 'expense_decide',\n                            parameters: [\n                              { key: 'recordId', value: String(recordId) },\n                              { key: 'decision', value: 'approve' },\n                            ],\n                          },\n                        },\n                      },\n                      {\n                        text: 'Reject',\n                        onClick: {\n                          action: {\n                            function: 'expense_decide',\n                            parameters: [\n                              { key: 'recordId', value: String(recordId) },\n                              { key: 'decision', value: 'reject' },\n                            ],\n                          },\n                        },\n                      },\n                    ],\n                  },\n                },\n              ],\n            },\n          ],\n        },\n      },\n    ],\n  };\n}\n\nreturn [{ json: { spaceId, recordId: expense.recordId, ...buildPendingExpenseCard(expense) } }];"
+      },
+      "id": "code-build-chat-pending-card-001",
+      "name": "Build Chat Pending Card",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2920,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://chat.googleapis.com/v1/' + $json.spaceId + '/messages' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ cardsV2: $json.cardsV2 }) }}",
+        "options": {}
+      },
+      "id": "http-post-chat-card-001",
+      "name": "Post Chat Card",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3160,
+        200
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "q5gIyYTsR42dLOYN",
+          "name": "Google Chat Expense Capture"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1rr11LMrAzXM9uwBCUlMzfdR6QCl0x7aluJQaZBP4Bo0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "recordId": "={{ $('Build Chat Pending Card').item.json.recordId }}",
+            "chatSpaceId": "={{ $('Build Chat Pending Card').item.json.spaceId }}",
+            "chatMessageName": "={{ $json.name }}"
+          },
+          "matchingColumns": [
+            "recordId"
+          ],
+          "schema": [
+            {
+              "id": "recordId",
+              "displayName": "recordId",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "chatSpaceId",
+              "displayName": "chatSpaceId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "chatMessageName",
+              "displayName": "chatMessageName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "sheets-save-chat-message-ref-001",
+      "name": "Save Chat Message Ref",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        3400,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "DTUZRcJpeIe7w4eK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
         "resource": "callback",
         "operation": "answerQuery",
         "queryId": "={{ $('Parse Callback').item.json.queryId }}",
@@ -1273,6 +1398,50 @@
         [
           {
             "node": "Save Telegram Approval Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Telegram Approval Message": {
+      "main": [
+        [
+          {
+            "node": "Chat DM Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat DM Config": {
+      "main": [
+        [
+          {
+            "node": "Build Chat Pending Card",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Chat Pending Card": {
+      "main": [
+        [
+          {
+            "node": "Post Chat Card",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Chat Card": {
+      "main": [
+        [
+          {
+            "node": "Save Chat Message Ref",
             "type": "main",
             "index": 0
           }

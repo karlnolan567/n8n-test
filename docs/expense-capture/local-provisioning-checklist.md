@@ -80,9 +80,10 @@ Final path must match the Webhook node path created in workflow Task 5 (`expense
 
 1. Open Google Chat → find the expense Chat app → send any message (establishes the DM).
 2. Copy the space id from the first outbound card send in n8n execution data, or from Chat API `spaces.list` filtered to `spaceType = DIRECT_MESSAGE`.
-3. Store locally in one of:
+3. In the local workflow, edit **Chat DM Config** → `spaceId` with that value. Exported JSON deliberately uses `spaces/REPLACE_ME`; do not commit a personal DM space id.
+4. Also record the value locally in one of:
    - **Recommended:** workflow sticky note on **08 - Expense Capture Telegram** (visible to operators, not a secret).
-   - **Optional:** `.env` as `EXPENSE_CHAT_DM_SPACE_ID` only if you already use env vars for demo config (same pattern as `WEBHOOK_URL`).
+   - **Optional:** `.env` as `EXPENSE_CHAT_DM_SPACE_ID` (or `GOOGLE_CHAT_DM_SPACE_ID`) only if you already use env vars for demo config (same pattern as `WEBHOOK_URL`).
    - **Alternative:** a dedicated config cell on the Sheet (document the cell address here once chosen).
 
 Space ids are configuration, not credentials — safe to note in the ticket comment table below. Do **not** commit `.env` or service-account keys.
