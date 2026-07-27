@@ -37,17 +37,55 @@ Selected demo model: `google/gemini-2.5-flash` (was `google/gemini-2.0-flash-001
 
 ## 3. Google Sheet
 
-Create a spreadsheet (suggested title: **Expense Capture Demo**). Row 1 headers exactly:
+Create a spreadsheet (suggested title: **Expense Capture Demo**). Row 1 headers exactly (tab-separated):
 
 ```
-recordId	date	vendor	amount	currency	tax	category	notes	status	capturedAt	telegramUser
+recordId	date	vendor	amount	currency	tax	category	notes	status	capturedAt	telegramUser	telegramDisplayName	telegramUserId	telegramChatId	telegramApprovalMessageId	chatSpaceId	chatMessageName
 ```
 
 | Asset | Where it lives | Done? |
 |-------|----------------|-------|
-| Spreadsheet created + headers | [Expense Capture Demo](https://docs.google.com/spreadsheets/d/1rr11LMrAzXM9uwBCUlMzfdR6QCl0x7aluJQaZBP4Bo0/edit) | ✅ |
+| Spreadsheet created + headers | [Expense Capture Demo](https://docs.google.com/spreadsheets/d/1rr11LMrAzXM9uwBCUlMzfdR6QCl0x7aluJQaZBP4Bo0/edit) | ☐ add dual-approval columns |
 | Spreadsheet URL | https://docs.google.com/spreadsheets/d/1rr11LMrAzXM9uwBCUlMzfdR6QCl0x7aluJQaZBP4Bo0/edit | ✅ |
 | n8n Google Sheets credential | Reuse existing **`Google Sheets account`** (`googleSheetsOAuth2Api`) | ✅ |
+
+### Dual approval — Sheet columns + Chat webhook
+
+These columns are **additive** to the original capture fields. They store cross-channel message ids so approving in Telegram clears the Chat card (and vice versa).
+
+**Row 1 header list (must match workflow mapping):**
+
+`recordId`, `date`, `vendor`, `amount`, `currency`, `tax`, `category`, `notes`, `status`, `capturedAt`, `telegramUser`, `telegramDisplayName`, `telegramUserId`, `telegramChatId`, `telegramApprovalMessageId`, `chatSpaceId`, `chatMessageName`
+
+| Column | Purpose |
+|--------|---------|
+| `telegramDisplayName` | Friendly submitter name on Sheet and both approval UIs |
+| `telegramUserId` | Numeric Telegram user id |
+| `telegramChatId` | Edit Telegram approval message after decision |
+| `telegramApprovalMessageId` | Telegram message id for inline button edit |
+| `chatSpaceId` | Chat DM space (`spaces/…`) for card updates |
+| `chatMessageName` | Full Chat message resource name for PATCH |
+
+**Chat app HTTPS endpoint** (GCP Chat app configuration → Triggers → App URL):
+
+```
+{WEBHOOK_URL}webhook/expense-google-chat/webhook
+```
+
+Example with current ngrok host: `https://slouchy-albatross-pencil.ngrok-free.dev/webhook/expense-google-chat/webhook`
+
+Final path must match the Webhook node path created in workflow Task 5 (`expense-google-chat`).
+
+**Record `GOOGLE_CHAT_DM_SPACE_ID`** after opening a 1:1 DM with the Chat app (e.g. `spaces/AAAA…`):
+
+1. Open Google Chat → find the expense Chat app → send any message (establishes the DM).
+2. Copy the space id from the first outbound card send in n8n execution data, or from Chat API `spaces.list` filtered to `spaceType = DIRECT_MESSAGE`.
+3. Store locally in one of:
+   - **Recommended:** workflow sticky note on **08 - Expense Capture Telegram** (visible to operators, not a secret).
+   - **Optional:** `.env` as `EXPENSE_CHAT_DM_SPACE_ID` only if you already use env vars for demo config (same pattern as `WEBHOOK_URL`).
+   - **Alternative:** a dedicated config cell on the Sheet (document the cell address here once chosen).
+
+Space ids are configuration, not credentials — safe to note in the ticket comment table below. Do **not** commit `.env` or service-account keys.
 
 ## 4. Google Chat (1:1 DM — personal Gmail)
 
@@ -58,6 +96,8 @@ Personal `@gmail.com` Chat apps **cannot join spaces**. Approvals use a **1:1 DM
 | Chat API app configured (interactive + HTTPS endpoint + saved) | GCP project `expensen8nworkflow` | ✅ |
 | n8n Google Chat credential | Service account `googleApi` → **`Google Chat Expense Capture`** (`expensen8n@expensen8nworkflow.iam.gserviceaccount.com`) | ✅ |
 | You can open a 1:1 DM with the Chat app | Google Chat → find app by name → message it | ☐ |
+| Chat app HTTPS endpoint set | `{WEBHOOK_URL}webhook/expense-google-chat/webhook` (see §3 dual approval) | ☐ |
+| `GOOGLE_CHAT_DM_SPACE_ID` recorded | Workflow sticky or `EXPENSE_CHAT_DM_SPACE_ID` in `.env` | ☐ |
 | Space **Expense approvals** | — | ❌ out of scope on personal Gmail |
 
 ## 5. Record when ready (no secrets)
@@ -73,7 +113,9 @@ Fill this table in the GitHub ticket comment when closing provision (names/URLs 
 | Sheet tab name | `Sheet1` |
 | Google Sheets credential name | `Google Sheets account` (reused) |
 | Google Chat space name | _(n/a — 1:1 DM with Chat app)_ |
+| `GOOGLE_CHAT_DM_SPACE_ID` | _(e.g. `spaces/AAAA…` — from 1:1 DM)_ |
 | Google Chat credential name | `Google Chat Expense Capture` |
+| Chat webhook path | `webhook/expense-google-chat/webhook` |
 | WEBHOOK_URL host (ngrok subdomain only) | `slouchy-albatross-pencil.ngrok-free.dev` |
 
 ## Suggested order
