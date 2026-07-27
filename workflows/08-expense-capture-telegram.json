@@ -160,7 +160,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first();\nconst msg = item.json.message || {};\nconst from = msg.from || {};\nconst binaryKey = Object.keys(item.binary || {})[0];\nif (!binaryKey) {\n  return [{ json: { ok: false, chatId: msg.chat && msg.chat.id, error: 'No image binary on message (send as photo or image file)' } }];\n}\nconst meta = item.binary[binaryKey];\nconst buf = await this.helpers.getBinaryDataBuffer(0, binaryKey);\nconst mime = meta.mimeType || (msg.document && msg.document.mime_type) || 'image/jpeg';\nif (!String(mime).startsWith('image/')) {\n  return [{ json: { ok: false, chatId: msg.chat && msg.chat.id, error: 'File is not an image' } }];\n}\nconst dataUrl = `data:${mime};base64,${buf.toString('base64')}`;\nconst recordId = 'exp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);\nconst capturedAt = new Date().toISOString();\nconst displayName = (() => {\n  const username = String(from.username || '').trim();\n  if (username) return '@' + username.replace(/^@/, '');\n  const first = String(from.first_name || '').trim();\n  const last = String(from.last_name || '').trim();\n  const full = [first, last].filter(Boolean).join(' ');\n  if (full) return full;\n  if (from.id !== undefined && from.id !== null && String(from.id).trim()) return String(from.id);\n  return 'unknown';\n})();\nconst telegramUser = displayName + ' / ' + String(from.id || '');\nconst chatId = msg.chat && msg.chat.id;\n\nconst extractPrompt = `Extract expense fields from this receipt image. Return ONLY valid JSON (no markdown) with keys:\\n{\\n  \\\"date\\\": \\\"YYYY-MM-DD or empty string\\\",\\n  \\\"vendor\\\": \\\"merchant name\\\",\\n  \\\"amount\\\": \\\"total as number string\\\",\\n  \\\"currency\\\": \\\"ISO code e.g. EUR\\\",\\n  \\\"tax\\\": \\\"tax/VAT if visible else empty\\\",\\n  \\\"category\\\": \\\"meals|travel|supplies|other\\\",\\n  \\\"notes\\\": \\\"short gist of line items\\\"\\n}\\nIf this is not a usable receipt, return {\\\"error\\\":\\\"unusable\\\"}.`;\n\nreturn [{\n  json: {\n    ok: true,\n    recordId,\n    capturedAt,\n    telegramDisplayName: displayName,\n    telegramUserId: String(from.id || ''),\n    telegramUser,\n    chatId,\n    telegramChatId: chatId,\n    extractPrompt,\n    dataUrl,\n    mime\n  },\n  binary: item.binary\n}];"
+        "jsCode": "const item = $input.first();\nconst msg = item.json.message || {};\nconst from = msg.from || {};\nconst binaryKey = Object.keys(item.binary || {})[0];\nif (!binaryKey) {\n  return [{ json: { ok: false, chatId: msg.chat && msg.chat.id, error: 'No image binary on message (send as photo or image file)' } }];\n}\nconst meta = item.binary[binaryKey];\nconst buf = await this.helpers.getBinaryDataBuffer(0, binaryKey);\nconst mime = meta.mimeType || (msg.document && msg.document.mime_type) || 'image/jpeg';\nif (!String(mime).startsWith('image/')) {\n  return [{ json: { ok: false, chatId: msg.chat && msg.chat.id, error: 'File is not an image' } }];\n}\nconst dataUrl = `data:${mime};base64,${buf.toString('base64')}`;\nconst recordId = 'exp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);\nconst capturedAt = new Date().toISOString();\nconst displayName = (() => {\n  const username = String(from.username || '').trim();\n  if (username) return '@' + username.replace(/^@/, '');\n  const first = String(from.first_name || '').trim();\n  const last = String(from.last_name || '').trim();\n  const full = [first, last].filter(Boolean).join(' ');\n  if (full) return full;\n  if (from.id !== undefined && from.id !== null && String(from.id).trim()) return String(from.id);\n  return 'unknown';\n})();\nconst telegramUser = displayName;\nconst chatId = msg.chat && msg.chat.id;\n\nconst extractPrompt = `Extract expense fields from this receipt image. Return ONLY valid JSON (no markdown) with keys:\\n{\\n  \\\"date\\\": \\\"YYYY-MM-DD or empty string\\\",\\n  \\\"vendor\\\": \\\"merchant name\\\",\\n  \\\"amount\\\": \\\"total as number string\\\",\\n  \\\"currency\\\": \\\"ISO code e.g. EUR\\\",\\n  \\\"tax\\\": \\\"tax/VAT if visible else empty\\\",\\n  \\\"category\\\": \\\"meals|travel|supplies|other\\\",\\n  \\\"notes\\\": \\\"short gist of line items\\\"\\n}\\nIf this is not a usable receipt, return {\\\"error\\\":\\\"unusable\\\"}.`;\n\nreturn [{\n  json: {\n    ok: true,\n    recordId,\n    capturedAt,\n    telegramDisplayName: displayName,\n    telegramUserId: String(from.id || ''),\n    telegramUser,\n    chatId,\n    telegramChatId: chatId,\n    extractPrompt,\n    dataUrl,\n    mime\n  },\n  binary: item.binary\n}];"
       },
       "id": "code-prep-001",
       "name": "Prep Image + Meta",
@@ -340,7 +340,7 @@
             "telegramUser": "={{ $('Parse Extraction').item.json.telegramUser }}",
             "telegramDisplayName": "={{ $('Parse Extraction').item.json.telegramDisplayName }}",
             "telegramUserId": "={{ $('Parse Extraction').item.json.telegramUserId }}",
-            "telegramChatId": "={{ $('Parse Extraction').item.json.telegramChatId }}",
+            "telegramChatId": "={{ String($('Parse Extraction').item.json.telegramChatId || $('Parse Extraction').item.json.chatId) }}",
             "telegramApprovalMessageId": "",
             "chatSpaceId": "",
             "chatMessageName": ""
@@ -811,6 +811,79 @@
     },
     {
       "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1rr11LMrAzXM9uwBCUlMzfdR6QCl0x7aluJQaZBP4Bo0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "recordId": "={{ $('Parse Extraction').item.json.recordId }}",
+            "telegramApprovalMessageId": "={{ String($json.result.message_id) }}",
+            "telegramChatId": "={{ String($('Parse Extraction').item.json.telegramChatId || $('Parse Extraction').item.json.chatId) }}"
+          },
+          "matchingColumns": [
+            "recordId"
+          ],
+          "schema": [
+            {
+              "id": "recordId",
+              "displayName": "recordId",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telegramApprovalMessageId",
+              "displayName": "telegramApprovalMessageId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telegramChatId",
+              "displayName": "telegramChatId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "sheets-save-telegram-approval-001",
+      "name": "Save Telegram Approval Message",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2440,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "DTUZRcJpeIe7w4eK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
         "resource": "callback",
         "operation": "answerQuery",
         "queryId": "={{ $('Parse Callback').item.json.queryId }}",
@@ -1189,6 +1262,17 @@
         [
           {
             "node": "Send Approval Buttons",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Approval Buttons": {
+      "main": [
+        [
+          {
+            "node": "Save Telegram Approval Message",
             "type": "main",
             "index": 0
           }
