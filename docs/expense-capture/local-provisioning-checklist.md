@@ -74,7 +74,9 @@ These columns are **additive** to the original capture fields. They store cross-
 
 Example with current ngrok host: `https://slouchy-albatross-pencil.ngrok-free.dev/webhook/expense-google-chat/webhook`
 
-Final path must match the Webhook node path created in workflow Task 5 (`expense-google-chat`).
+Final path must match the `Google Chat Events` Webhook node path (`expense-google-chat/webhook`).
+
+The `Google Chat Events` Webhook node uses the path `expense-google-chat/webhook`, so the complete public endpoint is `{WEBHOOK_URL}webhook/expense-google-chat/webhook`. Do not remove the trailing `/webhook`. After updating the GCP Chat app configuration or restarting the tunnel, send the app a direct message and confirm it replies `Expense approval bot ready` (or returns HTTP 200 in the Chat API logs).
 
 **Record `GOOGLE_CHAT_DM_SPACE_ID`** after opening a 1:1 DM with the Chat app (e.g. `spaces/AAAA…`):
 
