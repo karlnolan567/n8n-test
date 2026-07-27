@@ -160,7 +160,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first();\nconst msg = item.json.message || {};\nconst from = msg.from || {};\nconst binaryKey = Object.keys(item.binary || {})[0];\nif (!binaryKey) {\n  return [{ json: { ok: false, chatId: msg.chat && msg.chat.id, error: 'No image binary on message (send as photo or image file)' } }];\n}\nconst meta = item.binary[binaryKey];\nconst buf = await this.helpers.getBinaryDataBuffer(0, binaryKey);\nconst mime = meta.mimeType || (msg.document && msg.document.mime_type) || 'image/jpeg';\nif (!String(mime).startsWith('image/')) {\n  return [{ json: { ok: false, chatId: msg.chat && msg.chat.id, error: 'File is not an image' } }];\n}\nconst dataUrl = `data:${mime};base64,${buf.toString('base64')}`;\nconst recordId = 'exp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);\nconst capturedAt = new Date().toISOString();\nconst telegramUser = [from.username, from.id].filter(Boolean).join(' / ') || String(from.id || '');\nconst chatId = msg.chat && msg.chat.id;\n\nconst extractPrompt = `Extract expense fields from this receipt image. Return ONLY valid JSON (no markdown) with keys:\\n{\\n  \\\"date\\\": \\\"YYYY-MM-DD or empty string\\\",\\n  \\\"vendor\\\": \\\"merchant name\\\",\\n  \\\"amount\\\": \\\"total as number string\\\",\\n  \\\"currency\\\": \\\"ISO code e.g. EUR\\\",\\n  \\\"tax\\\": \\\"tax/VAT if visible else empty\\\",\\n  \\\"category\\\": \\\"meals|travel|supplies|other\\\",\\n  \\\"notes\\\": \\\"short gist of line items\\\"\\n}\\nIf this is not a usable receipt, return {\\\"error\\\":\\\"unusable\\\"}.`;\n\nreturn [{\n  json: {\n    ok: true,\n    recordId,\n    capturedAt,\n    telegramUser,\n    chatId,\n    extractPrompt,\n    dataUrl,\n    mime\n  },\n  binary: item.binary\n}];"
+        "jsCode": "const item = $input.first();\nconst msg = item.json.message || {};\nconst from = msg.from || {};\nconst binaryKey = Object.keys(item.binary || {})[0];\nif (!binaryKey) {\n  return [{ json: { ok: false, chatId: msg.chat && msg.chat.id, error: 'No image binary on message (send as photo or image file)' } }];\n}\nconst meta = item.binary[binaryKey];\nconst buf = await this.helpers.getBinaryDataBuffer(0, binaryKey);\nconst mime = meta.mimeType || (msg.document && msg.document.mime_type) || 'image/jpeg';\nif (!String(mime).startsWith('image/')) {\n  return [{ json: { ok: false, chatId: msg.chat && msg.chat.id, error: 'File is not an image' } }];\n}\nconst dataUrl = `data:${mime};base64,${buf.toString('base64')}`;\nconst recordId = 'exp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);\nconst capturedAt = new Date().toISOString();\nconst displayName = (() => {\n  const username = String(from.username || '').trim();\n  if (username) return '@' + username.replace(/^@/, '');\n  const full = [from.first_name, from.last_name].filter(Boolean).join(' ').trim();\n  if (full) return full;\n  return String(from.id || 'unknown');\n})();\nconst telegramUser = displayName + ' / ' + String(from.id || '');\nconst chatId = msg.chat && msg.chat.id;\n\nconst extractPrompt = `Extract expense fields from this receipt image. Return ONLY valid JSON (no markdown) with keys:\\n{\\n  \\\"date\\\": \\\"YYYY-MM-DD or empty string\\\",\\n  \\\"vendor\\\": \\\"merchant name\\\",\\n  \\\"amount\\\": \\\"total as number string\\\",\\n  \\\"currency\\\": \\\"ISO code e.g. EUR\\\",\\n  \\\"tax\\\": \\\"tax/VAT if visible else empty\\\",\\n  \\\"category\\\": \\\"meals|travel|supplies|other\\\",\\n  \\\"notes\\\": \\\"short gist of line items\\\"\\n}\\nIf this is not a usable receipt, return {\\\"error\\\":\\\"unusable\\\"}.`;\n\nreturn [{\n  json: {\n    ok: true,\n    recordId,\n    capturedAt,\n    telegramDisplayName: displayName,\n    telegramUserId: String(from.id || ''),\n    telegramUser,\n    chatId,\n    telegramChatId: chatId,\n    extractPrompt,\n    dataUrl,\n    mime\n  },\n  binary: item.binary\n}];"
       },
       "id": "code-prep-001",
       "name": "Prep Image + Meta",
@@ -242,7 +242,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const prep = $('Prep Image + Meta').first().json;\nconst raw = $input.first().json;\nif (raw.error || raw.message === 'No endpoints found' || (raw.error && raw.error.message)) {\n  const msg = (raw.error && (raw.error.message || raw.error.description)) || raw.description || raw.message || 'OpenRouter request failed';\n  return [{ json: { ok: false, chatId: prep.chatId, error: String(msg) } }];\n}\nconst content = (((raw.choices || [])[0] || {}).message || {}).content || '';\nlet text = typeof content === 'string' ? content : JSON.stringify(content);\ntext = text.replace(/^```json\\s*/i, '').replace(/^```\\s*/i, '').replace(/```$/i, '').trim();\nlet parsed;\ntry {\n  parsed = JSON.parse(text);\n} catch (e) {\n  return [{ json: { ok: false, chatId: prep.chatId, error: 'Could not parse model JSON', raw: text.slice(0, 500) } }];\n}\nif (parsed.error || (!parsed.vendor && !parsed.amount)) {\n  return [{ json: { ok: false, chatId: prep.chatId, error: 'Photo does not look like a usable receipt', raw: parsed } }];\n}\nreturn [{\n  json: {\n    ok: true,\n    recordId: prep.recordId,\n    date: parsed.date || '',\n    vendor: parsed.vendor || '',\n    amount: parsed.amount || '',\n    currency: parsed.currency || '',\n    tax: parsed.tax || '',\n    category: parsed.category || '',\n    notes: parsed.notes || '',\n    status: 'pending approval',\n    capturedAt: prep.capturedAt,\n    telegramUser: prep.telegramUser,\n    chatId: prep.chatId\n  }\n}];"
+        "jsCode": "const prep = $('Prep Image + Meta').first().json;\nconst raw = $input.first().json;\nif (raw.error || raw.message === 'No endpoints found' || (raw.error && raw.error.message)) {\n  const msg = (raw.error && (raw.error.message || raw.error.description)) || raw.description || raw.message || 'OpenRouter request failed';\n  return [{ json: { ok: false, chatId: prep.chatId, error: String(msg) } }];\n}\nconst content = (((raw.choices || [])[0] || {}).message || {}).content || '';\nlet text = typeof content === 'string' ? content : JSON.stringify(content);\ntext = text.replace(/^```json\\s*/i, '').replace(/^```\\s*/i, '').replace(/```$/i, '').trim();\nlet parsed;\ntry {\n  parsed = JSON.parse(text);\n} catch (e) {\n  return [{ json: { ok: false, chatId: prep.chatId, error: 'Could not parse model JSON', raw: text.slice(0, 500) } }];\n}\nif (parsed.error || (!parsed.vendor && !parsed.amount)) {\n  return [{ json: { ok: false, chatId: prep.chatId, error: 'Photo does not look like a usable receipt', raw: parsed } }];\n}\nreturn [{\n  json: {\n    ok: true,\n    recordId: prep.recordId,\n    date: parsed.date || '',\n    vendor: parsed.vendor || '',\n    amount: parsed.amount || '',\n    currency: parsed.currency || '',\n    tax: parsed.tax || '',\n    category: parsed.category || '',\n    notes: parsed.notes || '',\n    status: 'pending approval',\n    capturedAt: prep.capturedAt,\n    telegramDisplayName: prep.telegramDisplayName,\n    telegramUserId: prep.telegramUserId,\n    telegramUser: prep.telegramUser,\n    chatId: prep.chatId,\n    telegramChatId: prep.telegramChatId\n  }\n}];"
       },
       "id": "code-parse-001",
       "name": "Parse Extraction",
@@ -337,7 +337,13 @@
             "notes": "={{ $('Parse Extraction').item.json.notes }}",
             "status": "={{ $('Parse Extraction').item.json.status }}",
             "capturedAt": "={{ $('Parse Extraction').item.json.capturedAt }}",
-            "telegramUser": "={{ $('Parse Extraction').item.json.telegramUser }}"
+            "telegramUser": "={{ $('Parse Extraction').item.json.telegramUser }}",
+            "telegramDisplayName": "={{ $('Parse Extraction').item.json.telegramDisplayName }}",
+            "telegramUserId": "={{ $('Parse Extraction').item.json.telegramUserId }}",
+            "telegramChatId": "={{ $('Parse Extraction').item.json.telegramChatId }}",
+            "telegramApprovalMessageId": "",
+            "chatSpaceId": "",
+            "chatMessageName": ""
           },
           "matchingColumns": [],
           "schema": [
@@ -434,6 +440,60 @@
             {
               "id": "telegramUser",
               "displayName": "telegramUser",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telegramDisplayName",
+              "displayName": "telegramDisplayName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telegramUserId",
+              "displayName": "telegramUserId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telegramChatId",
+              "displayName": "telegramChatId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telegramApprovalMessageId",
+              "displayName": "telegramApprovalMessageId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "chatSpaceId",
+              "displayName": "chatSpaceId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "chatMessageName",
+              "displayName": "chatMessageName",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -705,7 +765,7 @@
     {
       "parameters": {
         "chatId": "={{ $('Parse Extraction').item.json.chatId }}",
-        "text": "=Expense pending approval\n\nrecordId: {{ $('Parse Extraction').item.json.recordId }}\nvendor: {{ $('Parse Extraction').item.json.vendor }}\namount: {{ $('Parse Extraction').item.json.amount }} {{ $('Parse Extraction').item.json.currency }}\ndate: {{ $('Parse Extraction').item.json.date }}\ncategory: {{ $('Parse Extraction').item.json.category }}\nnotes: {{ $('Parse Extraction').item.json.notes }}\n\nTap Approve or Reject:",
+        "text": "=Expense pending approval\n\nrecordId: {{ $('Parse Extraction').item.json.recordId }}\nsubmitter: {{ $('Parse Extraction').item.json.telegramDisplayName }}\nvendor: {{ $('Parse Extraction').item.json.vendor }}\namount: {{ $('Parse Extraction').item.json.amount }} {{ $('Parse Extraction').item.json.currency }}\ndate: {{ $('Parse Extraction').item.json.date }}\ncategory: {{ $('Parse Extraction').item.json.category }}\nnotes: {{ $('Parse Extraction').item.json.notes }}\n\nTap Approve or Reject:",
         "replyMarkup": "inlineKeyboard",
         "inlineKeyboard": {
           "rows": [
