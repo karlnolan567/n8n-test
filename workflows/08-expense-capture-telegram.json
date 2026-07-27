@@ -572,7 +572,7 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "recordId": "={{ $('Parse Callback').item.json.recordId }}",
+            "recordId": "={{ $('Gate Decision').item.json.recordId }}",
             "status": "approved"
           },
           "matchingColumns": [
@@ -635,7 +635,7 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "recordId": "={{ $('Parse Callback').item.json.recordId }}",
+            "recordId": "={{ $('Gate Decision').item.json.recordId }}",
             "status": "rejected"
           },
           "matchingColumns": [
@@ -1119,9 +1119,9 @@
       "parameters": {
         "operation": "editMessageText",
         "messageType": "message",
-        "chatId": "={{ $('Parse Callback').item.json.chatId }}",
-        "messageId": "={{ $('Parse Callback').item.json.messageId }}",
-        "text": "={{ (() => {\n  const base = String($('Parse Callback').item.json.originalText || '');\n  const cleaned = base.replace(/\\nTap Approve or Reject:?\\s*$/i, '').trim();\n  return cleaned + '\\n\\nStatus: APPROVED';\n})() }}",
+        "chatId": "={{ (() => { const gate = $('Gate Decision').first().json; const callback = $('Parse Callback').isExecuted ? $('Parse Callback').first().json : {}; return String(gate.telegramChatId || callback.chatId || ''); })() }}",
+        "messageId": "={{ (() => { const gate = $('Gate Decision').first().json; const callback = $('Parse Callback').isExecuted ? $('Parse Callback').first().json : {}; return String(gate.telegramApprovalMessageId || callback.messageId || ''); })() }}",
+        "text": "={{ (() => {\n  const gate = $('Gate Decision').first().json;\n  const callback = $('Parse Callback').isExecuted ? $('Parse Callback').first().json : {};\n  const base = String(callback.originalText || `Expense\\n\\nrecordId: ${gate.recordId || ''}\\nvendor: ${gate.vendor || ''}\\namount: ${gate.amount || ''} ${gate.currency || ''}`);\n  const cleaned = base.replace(/\\nTap Approve or Reject:?\\s*$/i, '').trim();\n  return cleaned + '\\n\\nStatus: APPROVED';\n})() }}",
         "replyMarkup": "inlineKeyboard",
         "inlineKeyboard": {
           "rows": []
@@ -1150,9 +1150,9 @@
       "parameters": {
         "operation": "editMessageText",
         "messageType": "message",
-        "chatId": "={{ $('Parse Callback').item.json.chatId }}",
-        "messageId": "={{ $('Parse Callback').item.json.messageId }}",
-        "text": "={{ (() => {\n  const base = String($('Parse Callback').item.json.originalText || '');\n  const cleaned = base.replace(/\\nTap Approve or Reject:?\\s*$/i, '').trim();\n  return cleaned + '\\n\\nStatus: REJECTED';\n})() }}",
+        "chatId": "={{ (() => { const gate = $('Gate Decision').first().json; const callback = $('Parse Callback').isExecuted ? $('Parse Callback').first().json : {}; return String(gate.telegramChatId || callback.chatId || ''); })() }}",
+        "messageId": "={{ (() => { const gate = $('Gate Decision').first().json; const callback = $('Parse Callback').isExecuted ? $('Parse Callback').first().json : {}; return String(gate.telegramApprovalMessageId || callback.messageId || ''); })() }}",
+        "text": "={{ (() => {\n  const gate = $('Gate Decision').first().json;\n  const callback = $('Parse Callback').isExecuted ? $('Parse Callback').first().json : {};\n  const base = String(callback.originalText || `Expense\\n\\nrecordId: ${gate.recordId || ''}\\nvendor: ${gate.vendor || ''}\\namount: ${gate.amount || ''} ${gate.currency || ''}`);\n  const cleaned = base.replace(/\\nTap Approve or Reject:?\\s*$/i, '').trim();\n  return cleaned + '\\n\\nStatus: REJECTED';\n})() }}",
         "replyMarkup": "inlineKeyboard",
         "inlineKeyboard": {
           "rows": []
@@ -1221,6 +1221,321 @@
         820,
         -160
       ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const decision = $input.first().json;\nif (decision.kind === 'chat-decision') {\n  return [{ json: { source: 'chat', recordId: decision.recordId, approved: decision.approved } }];\n}\nreturn [{ json: { source: 'telegram', recordId: decision.recordId, approved: decision.approved, chatId: decision.chatId, messageId: decision.messageId, queryId: decision.queryId, originalText: decision.originalText } }];"
+      },
+      "id": "code-prepare-decision-request-001",
+      "name": "Prepare Decision Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1rr11LMrAzXM9uwBCUlMzfdR6QCl0x7aluJQaZBP4Bo0",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "recordId",
+              "lookupValue": "={{ $('Prepare Decision Request').item.json.recordId }}"
+            }
+          ]
+        },
+        "options": {
+          "returnFirstMatch": true
+        }
+      },
+      "id": "sheets-lookup-pending-row-001",
+      "name": "Lookup Pending Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1300,
+        -40
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "DTUZRcJpeIe7w4eK",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function shouldApplyDecision(currentStatus) {\n  return String(currentStatus || '') === 'pending approval';\n}\n\nconst request = $('Prepare Decision Request').first().json;\nconst row = $input.first().json || {};\nreturn [{ json: { ...row, ...request, applyDecision: shouldApplyDecision(row.status) } }];"
+      },
+      "id": "code-gate-decision-001",
+      "name": "Gate Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-apply-decision",
+              "leftValue": "={{ $json.applyDecision }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-apply-decision-001",
+      "name": "Apply Decision?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1740,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-chat-decision",
+              "leftValue": "={{ $json.kind }}",
+              "rightValue": "chat-decision",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-chat-decision-001",
+      "name": "Chat Decision?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        820,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-late-telegram",
+              "leftValue": "={{ $json.source }}",
+              "rightValue": "telegram",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-late-telegram-decision-001",
+      "name": "Late Telegram Decision?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1960,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $('Gate Decision').item.json.queryId }}",
+        "additionalFields": {
+          "text": "Already decided",
+          "show_alert": false
+        }
+      },
+      "id": "tg-answer-already-decided-001",
+      "name": "Answer Already Decided Callback",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2180,
+        -200
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "mNLRMbumJp8Nifvy",
+          "name": "Telegram Expense Capture"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { reply: { text: 'Already decided.' } } }];"
+      },
+      "id": "code-chat-already-decided-001",
+      "name": "Respond Chat Already Decided",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2180,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const expense = $('Gate Decision').first().json;\nconst statusLabel = expense.approved ? 'APPROVED' : 'REJECTED';\nfunction widgetText(text) { return { textParagraph: { text } }; }\nfunction buildFinalExpenseCard({ recordId, vendor, amount, currency, telegramDisplayName }, status) {\n  return { cardsV2: [{ cardId: `expense-${recordId}`, card: { header: { title: `Expense ${status}`, subtitle: String(telegramDisplayName || '') }, sections: [{ widgets: [widgetText(`<b>Vendor:</b> ${vendor || ''}`), widgetText(`<b>Amount:</b> ${amount || ''} ${currency || ''}`), widgetText(`<b>recordId:</b> ${recordId || ''}`), widgetText(`<b>Status:</b> ${status}`)] }] } }] };\n}\nreturn [{ json: { chatMessageName: expense.chatMessageName, ...buildFinalExpenseCard(expense, statusLabel) } }];"
+      },
+      "id": "code-build-chat-final-card-001",
+      "name": "Build Chat Final Card",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://chat.googleapis.com/v1/' + $json.chatMessageName + '?updateMask=cardsV2' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ cardsV2: $json.cardsV2 }) }}",
+        "options": {}
+      },
+      "id": "http-update-chat-final-card-001",
+      "name": "Update Chat Final Card",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2180,
+        120
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "q5gIyYTsR42dLOYN",
+          "name": "Google Chat Expense Capture"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-success-telegram",
+              "leftValue": "={{ $('Gate Decision').item.json.source }}",
+              "rightValue": "telegram",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-success-telegram-decision-001",
+      "name": "Successful Telegram Decision?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2400,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const approved = $('Gate Decision').first().json.approved;\nreturn [{ json: { reply: { text: approved ? 'Expense approved.' : 'Expense rejected.' } } }];"
+      },
+      "id": "code-respond-chat-decision-001",
+      "name": "Respond Chat Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2620,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $('Gate Decision').item.json.queryId }}",
+        "additionalFields": {
+          "text": "={{ $('Gate Decision').item.json.approved ? 'Approved' : 'Rejected' }}",
+          "show_alert": false
+        }
+      },
+      "id": "tg-answer-decision-001",
+      "name": "Answer Decision Callback",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2620,
+        80
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "mNLRMbumJp8Nifvy",
+          "name": "Telegram Expense Capture"
+        }
+      }
     }
   ],
   "connections": {
@@ -1268,7 +1583,7 @@
       "main": [
         [
           {
-            "node": "Approved?",
+            "node": "Prepare Decision Request",
             "type": "main",
             "index": 0
           }
@@ -1509,7 +1824,7 @@
       "main": [
         [
           {
-            "node": "Answer Approved Callback",
+            "node": "Build Chat Final Card",
             "type": "main",
             "index": 0
           }
@@ -1520,7 +1835,7 @@
       "main": [
         [
           {
-            "node": "Answer Rejected Callback",
+            "node": "Build Chat Final Card",
             "type": "main",
             "index": 0
           }
@@ -1539,6 +1854,155 @@
       ]
     },
     "Route Chat Event": {
+      "main": [
+        [
+          {
+            "node": "Chat Decision?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Decision?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Decision Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Chat Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Decision Request": {
+      "main": [
+        [
+          {
+            "node": "Lookup Pending Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Pending Row": {
+      "main": [
+        [
+          {
+            "node": "Gate Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gate Decision": {
+      "main": [
+        [
+          {
+            "node": "Apply Decision?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Decision?": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Late Telegram Decision?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Late Telegram Decision?": {
+      "main": [
+        [
+          {
+            "node": "Answer Already Decided Callback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Chat Already Decided",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond Chat Already Decided": {
+      "main": [
+        [
+          {
+            "node": "Respond Chat Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Chat Final Card": {
+      "main": [
+        [
+          {
+            "node": "Update Chat Final Card",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Chat Final Card": {
+      "main": [
+        [
+          {
+            "node": "Successful Telegram Decision?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Successful Telegram Decision?": {
+      "main": [
+        [
+          {
+            "node": "Answer Decision Callback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Chat Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond Chat Decision": {
       "main": [
         [
           {
