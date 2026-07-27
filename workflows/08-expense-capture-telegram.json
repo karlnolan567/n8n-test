@@ -952,7 +952,7 @@
           "mappingMode": "defineBelow",
           "value": {
             "recordId": "={{ $('Build Chat Pending Card').item.json.recordId }}",
-            "chatSpaceId": "={{ $('Build Chat Pending Card').item.json.spaceId }}",
+            "chatSpaceId": "={{ String($json.name || '').split('/messages/')[0] }}",
             "chatMessageName": "={{ $json.name }}"
           },
           "matchingColumns": [
