@@ -1180,7 +1180,7 @@
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "expense-google-chat/webhook",
+        "path": "expense-google-chat",
         "responseMode": "responseNode",
         "options": {}
       },
@@ -1196,7 +1196,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json || {};\n\nfunction paramsToObject(parameters = []) {\n  const out = {};\n  for (const p of parameters) {\n    if (p && p.key !== undefined) out[p.key] = p.value;\n  }\n  return out;\n}\n\nfunction parseChatCardClick(event = {}) {\n  if (event.type !== 'CARD_CLICKED') {\n    return { ok: false, error: 'not_card_clicked' };\n  }\n  const action = event.action || {};\n  if (action.actionMethodName !== 'expense_decide') {\n    return { ok: false, error: 'unknown_action' };\n  }\n  const params = paramsToObject(action.parameters || []);\n  const recordId = String(params.recordId || '').trim();\n  const decision = String(params.decision || '').toLowerCase();\n  if (!recordId || (decision !== 'approve' && decision !== 'reject')) {\n    return { ok: false, error: 'invalid_params' };\n  }\n  return { ok: true, recordId, approved: decision === 'approve' };\n}\n\nif (body.type === 'CARD_CLICKED') {\n  const parsed = parseChatCardClick(body);\n  return [{\n    json: {\n      kind: parsed.ok ? 'chat-decision' : 'invalid-card-click',\n      ...parsed,\n      reply: {\n        text: parsed.ok ? 'Expense decision received.' : 'Could not process expense decision.',\n      },\n    },\n  }];\n}\n\nif (body.type === 'MESSAGE') {\n  return [{\n    json: {\n      kind: 'handshake',\n      reply: { text: 'Expense approval bot ready' },\n    },\n  }];\n}\n\nreturn [{ json: { kind: 'ignore', reply: {} } }];"
+        "jsCode": "const body = $input.first().json || {};\n\nfunction paramsToObject(parameters = []) {\n  const out = {};\n  for (const p of parameters) {\n    if (p && p.key !== undefined) out[p.key] = p.value;\n  }\n  return out;\n}\n\nfunction parseChatCardClick(event = {}) {\n  if (event.type !== 'CARD_CLICKED') {\n    return { ok: false, error: 'not_card_clicked' };\n  }\n  const action = event.action || {};\n  const actionNames = [\n    action.actionMethodName,\n    event.common?.invokedFunction,\n    action.function,\n  ];\n  if (!actionNames.includes('expense_decide')) {\n    return { ok: false, error: 'unknown_action' };\n  }\n  const params = paramsToObject(action.parameters || []);\n  const recordId = String(params.recordId || '').trim();\n  const decision = String(params.decision || '').toLowerCase();\n  if (!recordId || (decision !== 'approve' && decision !== 'reject')) {\n    return { ok: false, error: 'invalid_params' };\n  }\n  return { ok: true, recordId, approved: decision === 'approve' };\n}\n\nif (body.type === 'CARD_CLICKED') {\n  const parsed = parseChatCardClick(body);\n  return [{\n    json: {\n      kind: parsed.ok ? 'chat-decision' : 'invalid-card-click',\n      ...parsed,\n      reply: {\n        text: parsed.ok ? 'Expense decision received.' : 'Could not process expense decision.',\n      },\n    },\n  }];\n}\n\nif (body.type === 'MESSAGE') {\n  return [{\n    json: {\n      kind: 'handshake',\n      reply: { text: 'Expense approval bot ready' },\n    },\n  }];\n}\n\nreturn [{ json: { kind: 'ignore', reply: {} } }];"
       },
       "id": "code-route-chat-event-001",
       "name": "Route Chat Event",

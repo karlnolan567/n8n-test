@@ -69,14 +69,14 @@ These columns are **additive** to the original capture fields. They store cross-
 **Chat app HTTPS endpoint** (GCP Chat app configuration → Triggers → App URL):
 
 ```
-{WEBHOOK_URL}webhook/expense-google-chat/webhook
+{WEBHOOK_URL}webhook/expense-google-chat
 ```
 
-Example with current ngrok host: `https://slouchy-albatross-pencil.ngrok-free.dev/webhook/expense-google-chat/webhook`
+Example with current ngrok host: `https://slouchy-albatross-pencil.ngrok-free.dev/webhook/expense-google-chat`
 
-Final path must match the `Google Chat Events` Webhook node path (`expense-google-chat/webhook`).
+Final path must match the `Google Chat Events` Webhook node path (`expense-google-chat`). n8n prefixes configured webhook paths with `/webhook/`.
 
-The `Google Chat Events` Webhook node uses the path `expense-google-chat/webhook`, so the complete public endpoint is `{WEBHOOK_URL}webhook/expense-google-chat/webhook`. Do not remove the trailing `/webhook`. After updating the GCP Chat app configuration or restarting the tunnel, send the app a direct message and confirm it replies `Expense approval bot ready` (or returns HTTP 200 in the Chat API logs).
+The `Google Chat Events` Webhook node uses the path `expense-google-chat`, so the complete public endpoint is `{WEBHOOK_URL}webhook/expense-google-chat`. After updating the GCP Chat app configuration or restarting the tunnel, send the app a direct message and confirm it replies `Expense approval bot ready` (or returns HTTP 200 in the Chat API logs).
 
 **Record `GOOGLE_CHAT_DM_SPACE_ID`** after opening a 1:1 DM with the Chat app (e.g. `spaces/AAAA…`):
 
@@ -99,7 +99,7 @@ Personal `@gmail.com` Chat apps **cannot join spaces**. Approvals use a **1:1 DM
 | Chat API app configured (interactive + HTTPS endpoint + saved) | GCP project `expensen8nworkflow` | ✅ |
 | n8n Google Chat credential | Service account `googleApi` → **`Google Chat Expense Capture`** (`expensen8n@expensen8nworkflow.iam.gserviceaccount.com`) | ✅ |
 | You can open a 1:1 DM with the Chat app | Google Chat → find app by name → message it | ☐ |
-| Chat app HTTPS endpoint set | `{WEBHOOK_URL}webhook/expense-google-chat/webhook` (see §3 dual approval) | ☐ |
+| Chat app HTTPS endpoint set | `{WEBHOOK_URL}webhook/expense-google-chat` (see §3 dual approval) | ☐ |
 | `GOOGLE_CHAT_DM_SPACE_ID` recorded | Workflow sticky or `EXPENSE_CHAT_DM_SPACE_ID` in `.env` | ☐ |
 | Space **Expense approvals** | — | ❌ out of scope on personal Gmail |
 
@@ -118,7 +118,7 @@ Fill this table in the GitHub ticket comment when closing provision (names/URLs 
 | Google Chat space name | _(n/a — 1:1 DM with Chat app)_ |
 | `GOOGLE_CHAT_DM_SPACE_ID` | _(e.g. `spaces/AAAA…` — from 1:1 DM)_ |
 | Google Chat credential name | `Google Chat Expense Capture` |
-| Chat webhook path | `webhook/expense-google-chat/webhook` |
+| Chat webhook path | `webhook/expense-google-chat` |
 | WEBHOOK_URL host (ngrok subdomain only) | `slouchy-albatross-pencil.ngrok-free.dev` |
 
 ## Suggested order

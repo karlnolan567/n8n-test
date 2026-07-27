@@ -11,7 +11,12 @@ function parseChatCardClick(body = {}) {
     return { ok: false, error: 'not_card_clicked' };
   }
   const action = body.action || {};
-  if (action.actionMethodName !== 'expense_decide') {
+  const actionNames = [
+    action.actionMethodName,
+    body.common?.invokedFunction,
+    action.function,
+  ];
+  if (!actionNames.includes('expense_decide')) {
     return { ok: false, error: 'unknown_action' };
   }
   const params = paramsToObject(action.parameters || []);
