@@ -46,7 +46,7 @@
 |------|-----|
 | Telegram thread | Capture + human approval in the same place for this demo |
 | Sheet row lifecycle | System of record: pending → approved / rejected |
-| JSON reply | Model output is inspectable while we harden the demo |
+| Approve/Reject buttons | Human gate before Sheet status changes |
 
 ## Sample receipt fields (known good)
 
@@ -61,7 +61,7 @@ From dry-run receipt `Receipt1.png` / Daily Grind Cafe:
 | Step | Result |
 |------|--------|
 | `/start` → help text | ✅ |
-| Receipt image (no caption) → JSON in Telegram | ✅ |
+| Receipt image (no caption) → pending approval prompt | ✅ |
 | Sheet row `pending approval` | ✅ |
 | Approve → buttons cleared, `approved` | ✅ |
 | Reject → buttons cleared, `rejected` | ✅ (re-check if needed after latest button UX) |

@@ -5,7 +5,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Expense Capture (local demo)\n\n1. Allowlisted user sends a **photo/image file** (no /start caption needed)\n2. OpenRouter (`google/gemini-2.5-flash`) extracts fields\n3. **Testing:** extracted JSON is sent back in Telegram\n4. Row appended to Sheet with `pending approval`\n5. **Inline Approve/Reject buttons** in Telegram (no browser redirect)\n6. Sheet status updated; Telegram ack message\n\n`/start` \u2192 help text.\n\nCredentials: Telegram Expense Capture \u00b7 OpenRouter Expense N8N \u00b7 Google Sheets account",
+        "content": "## Expense Capture (local demo)\n\n1. Allowlisted user sends a **photo/image file** (no /start caption needed)\n2. OpenRouter (`google/gemini-2.5-flash`) extracts fields\n3. Row appended to Sheet with `pending approval`\n4. **Inline Approve/Reject buttons** in Telegram (no browser redirect)\n5. Sheet status updated; buttons cleared + status on message\n\n`/start` \u2192 help text.\n\nCredentials: Telegram Expense Capture \u00b7 OpenRouter Expense N8N \u00b7 Google Sheets account",
         "height": 380,
         "width": 420
       },
@@ -302,30 +302,6 @@
       "position": [
         1720,
         420
-      ],
-      "credentials": {
-        "telegramApi": {
-          "id": "mNLRMbumJp8Nifvy",
-          "name": "Telegram Expense Capture"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "chatId": "={{ $json.chatId }}",
-        "text": "=LLM extraction (testing)\n```json\n{{ JSON.stringify({ recordId: $json.recordId, date: $json.date, vendor: $json.vendor, amount: $json.amount, currency: $json.currency, tax: $json.tax, category: $json.category, notes: $json.notes, status: $json.status, capturedAt: $json.capturedAt, telegramUser: $json.telegramUser }, null, 2) }}\n```",
-        "additionalFields": {
-          "appendAttribution": false,
-          "parse_mode": "Markdown"
-        }
-      },
-      "id": "tg-reply-json-001",
-      "name": "Reply Extraction JSON",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        1720,
-        80
       ],
       "credentials": {
         "telegramApi": {
@@ -1134,7 +1110,7 @@
       "main": [
         [
           {
-            "node": "Reply Extraction JSON",
+            "node": "Append Pending Row",
             "type": "main",
             "index": 0
           }
@@ -1142,17 +1118,6 @@
         [
           {
             "node": "Reply Extract Failed",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Reply Extraction JSON": {
-      "main": [
-        [
-          {
-            "node": "Append Pending Row",
             "type": "main",
             "index": 0
           }
