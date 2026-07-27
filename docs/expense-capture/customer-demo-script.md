@@ -11,9 +11,15 @@
 2. Cloudflare tunnel or ngrok up and `WEBHOOK_URL` / Telegram webhook pointing at it  
    (quick tunnels rotate — if Telegram goes silent, restart tunnel and re-activate the workflow)
 3. Workflow **08 - Expense Capture Telegram** active
-4. Chat app HTTPS endpoint = `{WEBHOOK_URL}webhook/expense-google-chat/webhook`
+4. Chat app HTTPS endpoint = `{WEBHOOK_URL}webhook/expense-google-chat`
 5. You are Telegram user `7813999484` (allowlisted)
 6. You have opened a 1:1 DM with the expense Chat app; `GOOGLE_CHAT_DM_SPACE_ID` configured in workflow sticky or `.env`
+
+### Import the latest workflow export
+
+1. In local n8n, import `workflows/08-expense-capture-telegram.json`.
+2. In **Chat DM Config**, replace `spaces/REPLACE_ME` with the operator's 1:1 Chat DM space id; do not save that personal id back into the tracked export.
+3. Activate the imported workflow. If any local UI edits are needed, re-export that activated workflow to the same tracked path before committing.
 
 ## Demo script (~5 minutes)
 
@@ -72,6 +78,9 @@ From dry-run receipt `Receipt1.png` / Daily Grind Cafe:
 
 | Step | Result |
 |------|--------|
+| Latest `workflows/08-expense-capture-telegram.json` imported and activated locally | ☐ |
+| Chat app HTTPS endpoint set to `{WEBHOOK_URL}webhook/expense-google-chat` | ☐ |
+| 1:1 Chat DM opened and `GOOGLE_CHAT_DM_SPACE_ID` set only locally | ☐ |
 | `/start` → help text | ✅ |
 | Receipt image (no caption) → pending approval prompt (Telegram) | ✅ |
 | Sheet row `pending approval` + `telegramDisplayName` | ☐ |
@@ -87,3 +96,4 @@ From dry-run receipt `Receipt1.png` / Daily Grind Cafe:
 - Model: `google/gemini-2.5-flash` via OpenRouter (older `gemini-2.0-flash-001` slug retired).
 - Approve path proven on execution `283`. Reject path reached Sheet update; one overnight failure was DNS (`sheets.googleapis.com` ENOTFOUND) after a long wait — retry reject on a fresh run.
 - Dual Chat approval requires Sheet columns `telegramApprovalMessageId`, `chatSpaceId`, `chatMessageName` — see [local provisioning checklist](./local-provisioning-checklist.md).
+- The Sheet status lookup/update is the accepted first-wins gate for normal clicks, but it is not atomic under genuinely simultaneous Telegram and Chat decisions. A concurrent race is a residual demo limitation.

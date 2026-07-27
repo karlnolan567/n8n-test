@@ -6,7 +6,7 @@
 
 ## 0. Local stack + public HTTPS
 
-Telegram webhooks and Google Chat “Send and Wait” need a public HTTPS URL pointing at local n8n.
+Telegram webhooks and Google Chat interactive events need a public HTTPS URL pointing at local n8n.
 
 | Step | Done? | Notes |
 |------|-------|-------|
@@ -14,6 +14,12 @@ Telegram webhooks and Google Chat “Send and Wait” need a public HTTPS URL po
 | ngrok authtoken configured | ✅ | `ngrok config add-authtoken …` |
 | `./scripts/setup-ngrok-webhook.sh` | ✅ | Sets `WEBHOOK_URL` + `N8N_EDITOR_BASE_URL` in `.env`, restarts n8n |
 | Confirm webhook URL opens n8n UI | ✅ | Host: `slouchy-albatross-pencil.ngrok-free.dev` |
+
+### Import the current workflow export
+
+1. Import `workflows/08-expense-capture-telegram.json` into local n8n.
+2. Set **Chat DM Config** → `spaceId` to the locally obtained 1:1 DM space id.
+3. Activate the workflow. If an operator changes the workflow in the UI, export that activated version back to `workflows/08-expense-capture-telegram.json` before committing; retain the tracked `spaces/REPLACE_ME` placeholder.
 
 ## 1. Telegram
 
