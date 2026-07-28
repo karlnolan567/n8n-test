@@ -7,7 +7,8 @@ function paramsToObject(parameters = []) {
 }
 
 function parseChatCardClick(body = {}) {
-  if (body.type !== 'CARD_CLICKED') {
+  const type = String(body.type || body.eventType || '');
+  if (type !== 'CARD_CLICKED') {
     return { ok: false, error: 'not_card_clicked' };
   }
   const action = body.action || {};

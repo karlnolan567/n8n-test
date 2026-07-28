@@ -2,7 +2,22 @@ function widgetText(labeledText) {
   return { textParagraph: { text: labeledText } };
 }
 
-function buildPendingExpenseCard(expense) {
+function normalizePublicBaseUrl(publicBaseUrl) {
+  const base = String(publicBaseUrl || '').trim();
+  if (!base) {
+    throw new Error('publicBaseUrl is required for Chat openLink buttons');
+  }
+  return base.endsWith('/') ? base : `${base}/`;
+}
+
+function decisionLinkUrl(publicBaseUrl, recordId, decision) {
+  const base = normalizePublicBaseUrl(publicBaseUrl);
+  const qs = 'recordId=' + encodeURIComponent(String(recordId))
+    + '&decision=' + encodeURIComponent(String(decision));
+  return `${base}webhook/expense-chat-link?${qs}`;
+}
+
+function buildPendingExpenseCard(expense, publicBaseUrl) {
   const {
     recordId,
     vendor,
@@ -13,6 +28,8 @@ function buildPendingExpenseCard(expense) {
     notes,
     telegramDisplayName,
   } = expense;
+  const approveUrl = decisionLinkUrl(publicBaseUrl, recordId, 'approve');
+  const rejectUrl = decisionLinkUrl(publicBaseUrl, recordId, 'reject');
   return {
     cardsV2: [
       {
@@ -41,25 +58,13 @@ function buildPendingExpenseCard(expense) {
                       {
                         text: 'Approve',
                         onClick: {
-                          action: {
-                            function: 'expense_decide',
-                            parameters: [
-                              { key: 'recordId', value: String(recordId) },
-                              { key: 'decision', value: 'approve' },
-                            ],
-                          },
+                          openLink: { url: approveUrl },
                         },
                       },
                       {
                         text: 'Reject',
                         onClick: {
-                          action: {
-                            function: 'expense_decide',
-                            parameters: [
-                              { key: 'recordId', value: String(recordId) },
-                              { key: 'decision', value: 'reject' },
-                            ],
-                          },
+                          openLink: { url: rejectUrl },
                         },
                       },
                     ],
@@ -101,4 +106,9 @@ function buildFinalExpenseCard(expense, statusLabel) {
   };
 }
 
-module.exports = { buildPendingExpenseCard, buildFinalExpenseCard };
+module.exports = {
+  buildPendingExpenseCard,
+  buildFinalExpenseCard,
+  decisionLinkUrl,
+  normalizePublicBaseUrl,
+};

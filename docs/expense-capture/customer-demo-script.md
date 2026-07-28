@@ -11,7 +11,7 @@
 2. Cloudflare tunnel or ngrok up and `WEBHOOK_URL` / Telegram webhook pointing at it  
    (quick tunnels rotate — if Telegram goes silent, restart tunnel and re-activate the workflow)
 3. Workflow **08 - Expense Capture Telegram** active
-4. Chat app HTTPS endpoint = `{WEBHOOK_URL}webhook/expense-google-chat`
+4. Chat Approve/Reject use openLink to `{WEBHOOK_URL}webhook/expense-chat-link` (browser tab; CARD_CLICKED not required)
 5. You are Telegram user `7813999484` (allowlisted)
 6. You have opened a 1:1 DM with the expense Chat app; `GOOGLE_CHAT_DM_SPACE_ID` configured in workflow sticky or `.env`
 
@@ -33,7 +33,7 @@
 - **Send a photo or image file** (PNG/JPG) of a receipt in Telegram.
 - Bot replies with **LLM extraction JSON** (testing visibility), then an **Approve / Reject** inline button prompt in Telegram.
 - Sheet gets a new row with `status = pending approval` and **`telegramDisplayName`** populated (e.g. `@karl` or first + last name).
-- **Show the Google Chat DM:** an expense card with the same fields and Approve / Reject buttons.
+- **Show the Google Chat DM:** an expense card with the same fields and Approve / Reject **links** (open a short confirmation tab).
 
 ### 3. Approve in one channel (cross-channel clear)
 - Say: “Approver can act in either channel — whichever wins first.”
