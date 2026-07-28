@@ -1,0 +1,108 @@
+{
+  "id": "expense-list-chat-dm-spaces-001",
+  "name": "09 - List Google Chat DM Spaces",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## List Chat DM spaces (for expense approval)\n\n1. DM the **expensen8nworkflow** Chat app once in Google Chat (same app as SA `Google Chat Expense Capture`).\n2. Click **Execute workflow**.\n3. Open **List DM Spaces** output → copy `spaces[].name` (e.g. `spaces/XXXX`).\n4. Put that value in expense workflow **Chat DM Config** → `spaceId` (local only; do not commit).\n\nIf `spaces` is empty, you messaged the wrong Chat app / project.",
+        "height": 340,
+        "width": 460
+      },
+      "id": "sticky-list-chat-spaces-001",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-80, 80]
+    },
+    {
+      "parameters": {},
+      "id": "manual-list-chat-spaces-001",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [280, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://chat.googleapis.com/v1/spaces?filter=spaceType%20%3D%20%22DIRECT_MESSAGE%22",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {}
+      },
+      "id": "http-list-dm-spaces-001",
+      "name": "List DM Spaces",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 300],
+      "credentials": {
+        "googleApi": {
+          "id": "q5gIyYTsR42dLOYN",
+          "name": "Google Chat Expense Capture"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://chat.googleapis.com/v1/spaces",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "options": {}
+      },
+      "id": "http-list-all-spaces-001",
+      "name": "List All Spaces (fallback)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 520],
+      "credentials": {
+        "googleApi": {
+          "id": "q5gIyYTsR42dLOYN",
+          "name": "Google Chat Expense Capture"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json || {};\nconst spaces = Array.isArray(raw.spaces) ? raw.spaces : [];\nconst dms = spaces.filter((s) => String(s.spaceType || '') === 'DIRECT_MESSAGE' || !s.spaceType);\n\nif (!spaces.length) {\n  return [{\n    json: {\n      ok: false,\n      hint: 'No spaces returned. DM the expensen8nworkflow Chat app once, then re-run. Do not use the new-project app unless its SA is this credential.',\n      spaceIds: [],\n    },\n  }];\n}\n\nreturn [{\n  json: {\n    ok: true,\n    count: spaces.length,\n    spaceIds: spaces.map((s) => s.name).filter(Boolean),\n    dmSpaceIds: dms.map((s) => s.name).filter(Boolean),\n    spaces,\n  },\n}];"
+      },
+      "id": "code-summarize-spaces-001",
+      "name": "Summarize Space Ids",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 300]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "List DM Spaces",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List DM Spaces": {
+      "main": [
+        [
+          {
+            "node": "Summarize Space Ids",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

@@ -5,7 +5,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Expense Capture (local demo)\n\n1. Allowlisted user sends a **photo/image file** (no /start caption needed)\n2. OpenRouter (`google/gemini-2.5-flash`) extracts fields\n3. Row appended to Sheet with `pending approval`\n4. **Inline Approve/Reject buttons** in Telegram (no browser redirect)\n5. Pending Cards v2 sent to the configured Google Chat **1:1 DM**\n6. Sheet status updated; buttons cleared + status on message\n\nSet `Chat DM Config` → `spaceId` to the 1:1 DM resource (`spaces/...`) locally before activating. Do not use a group space. Optional local env convention: `EXPENSE_CHAT_DM_SPACE_ID` / `GOOGLE_CHAT_DM_SPACE_ID`.\n\n`/start` \u2192 help text.\n\nCredentials: Telegram Expense Capture \u00b7 OpenRouter Expense N8N \u00b7 Google Sheets account \u00b7 Google Chat Expense Capture",
+        "content": "## Expense Capture (local demo)\n\n1. Allowlisted user sends a **photo/image file** (no /start caption needed)\n2. OpenRouter (`google/gemini-2.5-flash`) extracts fields\n3. Row appended to Sheet with `pending approval`\n4. **Inline Approve/Reject buttons** in Telegram (no browser redirect)\n5. Pending Cards v2 sent to the configured Google Chat **1:1 DM** (Approve/Reject are **openLink** buttons)\n6. Link click updates Sheet; Telegram buttons cleared + Chat card updated\n\nSet `Chat DM Config` \u2192 `spaceId` to the 1:1 DM resource (`spaces/...`) locally before activating. Do not use a group space. Optional local env convention: `EXPENSE_CHAT_DM_SPACE_ID` / `GOOGLE_CHAT_DM_SPACE_ID`.\n\n`/start` \u2192 help text.\n\nCredentials: Telegram Expense Capture \u00b7 OpenRouter Expense N8N \u00b7 Google Sheets account \u00b7 Google Chat Expense Capture",
         "height": 380,
         "width": 420
       },
@@ -897,7 +897,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const expense = $('Parse Extraction').first().json;\nconst spaceId = String($json.spaceId || '');\n\nfunction widgetText(labeledText) {\n  return { textParagraph: { text: labeledText } };\n}\n\nfunction buildPendingExpenseCard({ recordId, vendor, amount, currency, date, category, notes, telegramDisplayName }) {\n  return {\n    cardsV2: [\n      {\n        cardId: `expense-${recordId}`,\n        card: {\n          header: {\n            title: 'Expense pending approval',\n            subtitle: String(telegramDisplayName || ''),\n          },\n          sections: [\n            {\n              widgets: [\n                widgetText(`<b>Vendor:</b> ${vendor || ''}`),\n                widgetText(`<b>Amount:</b> ${amount || ''} ${currency || ''}`),\n                widgetText(`<b>Date:</b> ${date || ''}`),\n                widgetText(`<b>Category:</b> ${category || ''}`),\n                widgetText(`<b>Notes:</b> ${notes || ''}`),\n                widgetText(`<b>recordId:</b> ${recordId || ''}`),\n              ],\n            },\n            {\n              widgets: [\n                {\n                  buttonList: {\n                    buttons: [\n                      {\n                        text: 'Approve',\n                        onClick: {\n                          action: {\n                            function: 'expense_decide',\n                            parameters: [\n                              { key: 'recordId', value: String(recordId) },\n                              { key: 'decision', value: 'approve' },\n                            ],\n                          },\n                        },\n                      },\n                      {\n                        text: 'Reject',\n                        onClick: {\n                          action: {\n                            function: 'expense_decide',\n                            parameters: [\n                              { key: 'recordId', value: String(recordId) },\n                              { key: 'decision', value: 'reject' },\n                            ],\n                          },\n                        },\n                      },\n                    ],\n                  },\n                },\n              ],\n            },\n          ],\n        },\n      },\n    ],\n  };\n}\n\nreturn [{ json: { spaceId, recordId: expense.recordId, ...buildPendingExpenseCard(expense) } }];"
+        "jsCode": "const expense = $('Parse Extraction').first().json;\nconst spaceId = String($json.spaceId || '');\nconst publicBaseUrl = String(($env && $env.WEBHOOK_URL) || 'https://n8n.bespoke-ai.ie/').replace(/\\/?$/, '/');\n\nfunction widgetText(labeledText) {\n  return { textParagraph: { text: labeledText } };\n}\n\nfunction decisionLinkUrl(recordId, decision) {\n  const qs = 'recordId=' + encodeURIComponent(String(recordId))\n    + '&decision=' + encodeURIComponent(String(decision));\n  return publicBaseUrl + 'webhook/expense-chat-link?' + qs;\n}\n\nfunction buildPendingExpenseCard({ recordId, vendor, amount, currency, date, category, notes, telegramDisplayName }) {\n  return {\n    cardsV2: [\n      {\n        cardId: `expense-${recordId}`,\n        card: {\n          header: {\n            title: 'Expense pending approval',\n            subtitle: String(telegramDisplayName || ''),\n          },\n          sections: [\n            {\n              widgets: [\n                widgetText(`<b>Vendor:</b> ${vendor || ''}`),\n                widgetText(`<b>Amount:</b> ${amount || ''} ${currency || ''}`),\n                widgetText(`<b>Date:</b> ${date || ''}`),\n                widgetText(`<b>Category:</b> ${category || ''}`),\n                widgetText(`<b>Notes:</b> ${notes || ''}`),\n                widgetText(`<b>recordId:</b> ${recordId || ''}`),\n              ],\n            },\n            {\n              widgets: [\n                {\n                  buttonList: {\n                    buttons: [\n                      {\n                        text: 'Approve',\n                        onClick: { openLink: { url: decisionLinkUrl(recordId, 'approve') } },\n                      },\n                      {\n                        text: 'Reject',\n                        onClick: { openLink: { url: decisionLinkUrl(recordId, 'reject') } },\n                      },\n                    ],\n                  },\n                },\n              ],\n            },\n          ],\n        },\n      },\n    ],\n  };\n}\n\nreturn [{ json: { spaceId, recordId: expense.recordId, publicBaseUrl, ...buildPendingExpenseCard(expense) } }];\n"
       },
       "id": "code-build-chat-pending-card-001",
       "name": "Build Chat Pending Card",
@@ -1198,7 +1198,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json || {};\n\nfunction paramsToObject(parameters = []) {\n  const out = {};\n  for (const p of parameters) {\n    if (p && p.key !== undefined) out[p.key] = p.value;\n  }\n  return out;\n}\n\nfunction parseChatCardClick(event = {}) {\n  if (event.type !== 'CARD_CLICKED') {\n    return { ok: false, error: 'not_card_clicked' };\n  }\n  const action = event.action || {};\n  const actionNames = [\n    action.actionMethodName,\n    event.common?.invokedFunction,\n    action.function,\n  ];\n  if (!actionNames.includes('expense_decide')) {\n    return { ok: false, error: 'unknown_action' };\n  }\n  const params = paramsToObject(action.parameters || []);\n  const recordId = String(params.recordId || '').trim();\n  const decision = String(params.decision || '').toLowerCase();\n  if (!recordId || (decision !== 'approve' && decision !== 'reject')) {\n    return { ok: false, error: 'invalid_params' };\n  }\n  return { ok: true, recordId, approved: decision === 'approve' };\n}\n\nif (body.type === 'CARD_CLICKED') {\n  const parsed = parseChatCardClick(body);\n  return [{\n    json: {\n      kind: parsed.ok ? 'chat-decision' : 'invalid-card-click',\n      ...parsed,\n      reply: {\n        text: parsed.ok ? 'Expense decision received.' : 'Could not process expense decision.',\n      },\n    },\n  }];\n}\n\nif (body.type === 'MESSAGE') {\n  return [{\n    json: {\n      kind: 'handshake',\n      reply: { text: 'Expense approval bot ready' },\n    },\n  }];\n}\n\nreturn [{ json: { kind: 'ignore', reply: {} } }];"
+        "jsCode": "const raw = $input.first().json || {};\nconst body = (raw && typeof raw.body === 'object' && raw.body !== null && !Array.isArray(raw.body))\n  ? raw.body\n  : raw;\n\n// Workspace add-on events nest under `chat`; classic Chat apps use top-level type/eventType.\nconst chat = (body.chat && typeof body.chat === 'object') ? body.chat : null;\nconst isAddon = Boolean(chat);\nconst messagePayload = chat?.messagePayload || null;\nconst addedPayload = chat?.addedToSpacePayload || null;\nconst cardPayload = chat?.buttonClickedPayload || chat?.cardClickedPayload || null;\n\nconst classicType = String(body.type || body.eventType || '').trim();\nconst spaceName = String(\n  messagePayload?.space?.name\n  || addedPayload?.space?.name\n  || cardPayload?.space?.name\n  || body.space?.name\n  || ''\n).trim();\n\nfunction paramsToObject(parameters = []) {\n  const out = {};\n  for (const p of parameters) {\n    if (p && p.key !== undefined) out[p.key] = p.value;\n  }\n  return out;\n}\n\nfunction parseClassicCardClick(event = {}) {\n  const type = String(event.type || event.eventType || '');\n  if (type !== 'CARD_CLICKED') return { ok: false, error: 'not_card_clicked' };\n  const action = event.action || {};\n  const actionNames = [\n    action.actionMethodName,\n    event.common?.invokedFunction,\n    action.function,\n  ];\n  if (!actionNames.includes('expense_decide')) return { ok: false, error: 'unknown_action' };\n  const params = paramsToObject(action.parameters || []);\n  const recordId = String(params.recordId || '').trim();\n  const decision = String(params.decision || '').toLowerCase();\n  if (!recordId || (decision !== 'approve' && decision !== 'reject')) {\n    return { ok: false, error: 'invalid_params' };\n  }\n  return { ok: true, recordId, approved: decision === 'approve' };\n}\n\nfunction parseAddonCardClick(payload = {}) {\n  const action = payload.action || payload.common?.formInputs || {};\n  // Cards v2 / add-on button parameters vary; also check invokedFunction.\n  const names = [\n    payload.action?.actionMethodName,\n    payload.common?.invokedFunction,\n    payload.action?.function,\n  ];\n  if (!names.includes('expense_decide') && !String(payload.action?.actionMethodName || '').includes('expense_decide')) {\n    // Fall through to parameters-only parse if present\n  }\n  const params = paramsToObject(payload.action?.parameters || []);\n  if (!params.recordId && payload.common?.parameters) {\n    Object.assign(params, paramsToObject(payload.common.parameters));\n  }\n  const recordId = String(params.recordId || '').trim();\n  const decision = String(params.decision || '').toLowerCase();\n  if (!recordId || (decision !== 'approve' && decision !== 'reject')) {\n    return { ok: false, error: 'invalid_params' };\n  }\n  if (!names.includes('expense_decide') && decision) {\n    // allow if params are valid expense decision\n  } else if (!names.includes('expense_decide')) {\n    return { ok: false, error: 'unknown_action' };\n  }\n  return { ok: true, recordId, approved: decision === 'approve' };\n}\n\nfunction spaceReadyText(name) {\n  return name ? `Expense approval bot ready (${name})` : 'Expense approval bot ready';\n}\n\n\nfunction classicCardClickReply(parsed) {\n  if (!parsed.ok) {\n    return { actionResponse: { type: 'UPDATE_MESSAGE' }, text: 'Could not process expense decision.' };\n  }\n  const status = parsed.approved ? 'APPROVED' : 'REJECTED';\n  const recordId = parsed.recordId;\n  return {\n    actionResponse: { type: 'UPDATE_MESSAGE' },\n    cardsV2: [{\n      cardId: `expense-${recordId}`,\n      card: {\n        header: { title: `Expense ${status}` },\n        sections: [{\n          widgets: [\n            { textParagraph: { text: `<b>recordId:</b> ${recordId}` } },\n            { textParagraph: { text: `<b>Status:</b> ${status}` } },\n          ],\n        }],\n      },\n    }],\n  };\n}\n\nfunction classicReply(text, actionType) {\n  if (actionType) {\n    return { actionResponse: { type: actionType }, text };\n  }\n  return { text };\n}\n\nfunction addonReply(text) {\n  return {\n    hostAppDataAction: {\n      chatDataAction: {\n        createMessageAction: {\n          message: { text },\n        },\n      },\n    },\n  };\n}\n\nfunction replyFor(text) {\n  return isAddon ? addonReply(text) : classicReply(text);\n}\n\n// --- CARD / button ---\nif (classicType === 'CARD_CLICKED' || cardPayload) {\n  const parsed = cardPayload ? parseAddonCardClick(cardPayload) : parseClassicCardClick(body);\n  return [{\n    json: {\n      kind: parsed.ok ? 'chat-decision' : 'invalid-card-click',\n      ...parsed,\n      reply: isAddon\n        ? replyFor(parsed.ok ? 'Expense decision received.' : 'Could not process expense decision.')\n        : classicCardClickReply(parsed),\n    },\n  }];\n}\n\n// --- MESSAGE / added to space ---\nconst isMessage = classicType === 'MESSAGE' || Boolean(messagePayload);\nconst isAdded = classicType === 'ADDED_TO_SPACE' || Boolean(addedPayload);\nif (isMessage || isAdded) {\n  return [{\n    json: {\n      kind: 'handshake',\n      spaceId: spaceName,\n      reply: replyFor(spaceReadyText(spaceName)),\n    },\n  }];\n}\n\n// Acknowledge unknown events in the correct envelope.\nreturn [{\n  json: {\n    kind: 'ignore',\n    reply: isAddon\n      ? { hostAppDataAction: { chatDataAction: {} } }\n      : { text: '' },\n  },\n}];\n"
       },
       "id": "code-route-chat-event-001",
       "name": "Route Chat Event",
@@ -1226,7 +1226,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const decision = $input.first().json;\nif (decision.kind === 'chat-decision') {\n  return [{ json: { source: 'chat', recordId: decision.recordId, approved: decision.approved } }];\n}\nreturn [{ json: { source: 'telegram', recordId: decision.recordId, approved: decision.approved, chatId: decision.chatId, messageId: decision.messageId, queryId: decision.queryId, originalText: decision.originalText } }];"
+        "jsCode": "const decision = $input.first().json;\nif (decision.kind === 'chat-link-decision' || decision.kind === 'chat-decision') {\n  return [{ json: {\n    source: decision.kind === 'chat-link-decision' ? 'chat-link' : 'chat',\n    recordId: decision.recordId,\n    approved: decision.approved,\n  } }];\n}\nreturn [{ json: {\n  source: 'telegram',\n  recordId: decision.recordId,\n  approved: decision.approved,\n  chatId: decision.chatId,\n  messageId: decision.messageId,\n  queryId: decision.queryId,\n  originalText: decision.originalText,\n} }];\n"
       },
       "id": "code-prepare-decision-request-001",
       "name": "Prepare Decision Request",
@@ -1418,7 +1418,7 @@
     },
     {
       "parameters": {
-        "jsCode": "return [{ json: { reply: { text: 'Already decided.' } } }];"
+        "jsCode": "const replyHtml = `<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>Already decided</title></head>\n<body style=\"font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;padding:2rem;max-width:32rem;margin:auto;line-height:1.4\">\n<h1 style=\"margin:0 0 .5rem\">Already decided</h1>\n<p>This expense was already approved or rejected.</p>\n<p style=\"color:#666;font-size:.9rem\">You can close this tab.</p>\n<script>setTimeout(() => { try { window.close(); } catch (e) {} }, 1200);</script>\n</body></html>`;\nreturn [{ json: { replyHtml } }];\n"
       },
       "id": "code-chat-already-decided-001",
       "name": "Respond Chat Already Decided",
@@ -1504,7 +1504,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const approved = $('Gate Decision').first().json.approved;\nreturn [{ json: { reply: { text: approved ? 'Expense approved.' : 'Expense rejected.' } } }];"
+        "jsCode": "const approved = $('Gate Decision').first().json.approved;\nconst title = approved ? 'Expense approved' : 'Expense rejected';\nconst replyHtml = `<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>${title}</title></head>\n<body style=\"font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;padding:2rem;max-width:32rem;margin:auto;line-height:1.4\">\n<h1 style=\"margin:0 0 .5rem\">${title}</h1>\n<p>The sheet and approval UIs are updating.</p>\n<p style=\"color:#666;font-size:.9rem\">You can close this tab.</p>\n<script>setTimeout(() => { try { window.close(); } catch (e) {} }, 1200);</script>\n</body></html>`;\nreturn [{ json: { replyHtml } }];\n"
       },
       "id": "code-respond-chat-decision-001",
       "name": "Respond Chat Decision",
@@ -1539,6 +1539,135 @@
           "name": "Telegram Expense Capture"
         }
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-chat-link-sync",
+              "leftValue": "={{ $('Gate Decision').item.json.source }}",
+              "rightValue": "chat-link",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "cond-chat-sync",
+              "leftValue": "={{ $('Gate Decision').item.json.source }}",
+              "rightValue": "chat",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "if-chat-sync-reply-001",
+      "name": "Chat Sync Reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2400,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "expense-chat-link",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-expense-chat-link-001",
+      "name": "Chat Link Decide",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        280,
+        80
+      ],
+      "webhookId": "expense-chat-link-decide"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json || {};\nconst q = (raw.query && typeof raw.query === 'object') ? raw.query : {};\nconst recordId = String(q.recordId || '').trim();\nconst decision = String(q.decision || '').toLowerCase().trim();\n\nfunction htmlPage(title, body) {\n  return `<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>${title}</title></head>\n<body style=\"font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;padding:2rem;max-width:32rem;margin:auto;line-height:1.4\">\n<h1 style=\"margin:0 0 .5rem\">${title}</h1>\n<p>${body}</p>\n<p style=\"color:#666;font-size:.9rem\">You can close this tab.</p>\n<script>setTimeout(() => { try { window.close(); } catch (e) {} }, 1200);</script>\n</body></html>`;\n}\n\nif (!recordId || (decision !== 'approve' && decision !== 'reject')) {\n  return [{ json: {\n    kind: 'invalid-link',\n    replyHtml: htmlPage('Invalid link', 'Missing recordId or decision.'),\n  } }];\n}\n\nreturn [{ json: {\n  kind: 'chat-link-decision',\n  recordId,\n  approved: decision === 'approve',\n} }];\n"
+      },
+      "id": "code-parse-chat-link-001",
+      "name": "Parse Chat Link",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-valid-chat-link",
+              "leftValue": "={{ $json.kind }}",
+              "rightValue": "chat-link-decision",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-valid-chat-link-001",
+      "name": "Valid Chat Link?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        760,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.replyHtml }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-chat-link-page-001",
+      "name": "Respond Chat Link Page",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        2860,
+        220
+      ]
     }
   ],
   "connections": {
@@ -1622,6 +1751,11 @@
       "main": [
         [
           {
+            "node": "Build Chat Final Card",
+            "type": "main",
+            "index": 0
+          },
+          {
             "node": "Disable Buttons Approved",
             "type": "main",
             "index": 0
@@ -1632,6 +1766,11 @@
     "Mark Rejected": {
       "main": [
         [
+          {
+            "node": "Build Chat Final Card",
+            "type": "main",
+            "index": 0
+          },
           {
             "node": "Disable Buttons Rejected",
             "type": "main",
@@ -1825,24 +1964,12 @@
     },
     "Disable Buttons Approved": {
       "main": [
-        [
-          {
-            "node": "Build Chat Final Card",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Disable Buttons Rejected": {
       "main": [
-        [
-          {
-            "node": "Build Chat Final Card",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Google Chat Events": {
@@ -1958,7 +2085,7 @@
       "main": [
         [
           {
-            "node": "Respond Chat Event",
+            "node": "Respond Chat Link Page",
             "type": "main",
             "index": 0
           }
@@ -1970,6 +2097,11 @@
         [
           {
             "node": "Update Chat Final Card",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Chat Sync Reply?",
             "type": "main",
             "index": 0
           }
@@ -1996,20 +2128,66 @@
             "index": 0
           }
         ],
-        [
-          {
-            "node": "Respond Chat Decision",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Respond Chat Decision": {
       "main": [
         [
           {
-            "node": "Respond Chat Event",
+            "node": "Respond Chat Link Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Sync Reply?": {
+      "main": [
+        [
+          {
+            "node": "Respond Chat Decision",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Chat Link Decide": {
+      "main": [
+        [
+          {
+            "node": "Parse Chat Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Chat Link": {
+      "main": [
+        [
+          {
+            "node": "Valid Chat Link?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Chat Link?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Decision Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Chat Link Page",
             "type": "main",
             "index": 0
           }

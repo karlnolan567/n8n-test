@@ -76,6 +76,12 @@ These columns are **additive** to the original capture fields. They store cross-
 
 ```
 {WEBHOOK_URL}webhook/expense-google-chat
+
+Chat **Approve/Reject** buttons use **openLink** (browser tab), not `CARD_CLICKED`:
+
+```text
+{WEBHOOK_URL}webhook/expense-chat-link?recordId=…&decision=approve|reject
+```
 ```
 
 Example with current ngrok host: `https://slouchy-albatross-pencil.ngrok-free.dev/webhook/expense-google-chat`
